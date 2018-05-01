@@ -111,6 +111,7 @@ static int child_init(int rank);
 static int w_t_check(struct sip_msg* msg, char* str, char* str2);
 static int w_t_lookup_cancel(struct sip_msg* msg, char* str, char* str2);
 static int w_t_reply(struct sip_msg* msg, char* str, char* str2);
+static int w_t_send_reply(struct sip_msg* msg, char* p1, char* p2);
 static int w_t_release(struct sip_msg* msg, char* str, char* str2);
 static int w_t_retransmit_reply(struct sip_msg* p_msg, char* foo, char* bar );
 static int w_t_newtran(struct sip_msg* p_msg, char* foo, char* bar );
@@ -241,7 +242,9 @@ static cmd_export_t cmds[]={
 		REQUEST_ROUTE},
 	{"t_lookup_cancel",    w_t_lookup_cancel,       1, fixup_int_1,
 		REQUEST_ROUTE},
-	{"t_reply",              w_t_reply,               2, fixup_t_reply,
+	{"t_reply",              w_t_reply,             2, fixup_t_reply,
+		REQUEST_ROUTE | ONREPLY_ROUTE | FAILURE_ROUTE },
+	{"t_send_reply",         w_t_send_reply,        2, fixup_t_reply,
 		REQUEST_ROUTE | ONREPLY_ROUTE | FAILURE_ROUTE },
 	{"t_retransmit_reply", w_t_retransmit_reply,    0, 0,
 		REQUEST_ROUTE},
@@ -1311,18 +1314,19 @@ static int w_t_forward_nonack_to( struct sip_msg  *p_msg ,
 	return r;
 }
 
-
-static int w_t_reply(struct sip_msg* msg, char* p1, char* p2)
+/**
+ *
+ */
+static int ki_t_reply(sip_msg_t* msg, int code, str* reason)
 {
-	struct cell *t;
-	int code, ret = -1;
-	str reason;
-	char* r;
+	tm_cell_t *t = NULL;
+	int ret = -1;
 
 	if (msg->REQ_METHOD==METHOD_ACK) {
 		LM_DBG("ACKs are not replied\n");
 		return -1;
 	}
+
 	if (t_check( msg , 0 )==-1) return -1;
 	t=get_t();
 	if (!t) {
@@ -1331,34 +1335,23 @@ static int w_t_reply(struct sip_msg* msg, char* p1, char* p2)
 		return -1;
 	}
 
-	if (get_int_fparam(&code, msg, (fparam_t*)p1) < 0) {
-		code = cfg_get(tm, tm_cfg, default_code);
-	}
-
-	if (get_str_fparam(&reason, msg, (fparam_t*)p2) < 0) {
-		r = cfg_get(tm, tm_cfg, default_reason);
-	} else {
-		r = as_asciiz(&reason);
-		if (r == NULL) r = cfg_get(tm, tm_cfg, default_reason);
-	}
-
 	/* if called from reply_route, make sure that unsafe version
 	 * is called; we are already in a mutex and another mutex in
 	 * the safe version would lead to a deadlock
 	 */
-
 	t->flags |= T_ADMIN_REPLY;
 	if (is_route_type(FAILURE_ROUTE)) {
 		LM_DBG("t_reply_unsafe called from w_t_reply\n");
-		ret = t_reply_unsafe(t, msg, code, r);
+		ret = t_reply_str_unsafe(t, msg, (unsigned int)code, reason);
 	} else if (is_route_type(REQUEST_ROUTE)) {
-		ret = t_reply( t, msg, code, r);
+		ret = t_reply_str( t, msg, (unsigned int)code, reason);
 	} else if (is_route_type(ONREPLY_ROUTE)) {
 		if (likely(t->uas.request)){
 			if (is_route_type(CORE_ONREPLY_ROUTE))
-				ret=t_reply(t, t->uas.request, code, r);
+				ret=t_reply_str(t, t->uas.request, (unsigned int)code, reason);
 			else
-				ret=t_reply_unsafe(t, t->uas.request, code, r);
+				ret=t_reply_str_unsafe(t, t->uas.request, (unsigned int)code,
+							reason);
 		}else
 			ret=-1;
 		/* t_check() above has the side effect of setting T and
@@ -1375,11 +1368,74 @@ static int w_t_reply(struct sip_msg* msg, char* p1, char* p2)
 		ret = -1;
 	}
 
-	if (r && (r != cfg_get(tm, tm_cfg, default_reason))) pkg_free(r);
 	return ret;
 }
 
+static int w_t_reply(struct sip_msg* msg, char* p1, char* p2)
+{
+	int code, ret = -1;
+	str reason;
 
+	if (msg->REQ_METHOD==METHOD_ACK) {
+		LM_DBG("ACKs are not replied\n");
+		return -1;
+	}
+
+	if (get_int_fparam(&code, msg, (fparam_t*)p1) < 0) {
+		code = cfg_get(tm, tm_cfg, default_code);
+	}
+
+	if (get_str_fparam(&reason, msg, (fparam_t*)p2) < 0) {
+		reason.s = cfg_get(tm, tm_cfg, default_reason);
+		reason.len = strlen(reason.s);
+	}
+
+	return ki_t_reply(msg, code, &reason);
+}
+
+/**
+ *
+ */
+static int ki_t_send_reply(sip_msg_t* msg, int code, str* reason)
+{
+	int ret;
+
+	ret = t_newtran(msg);
+	if (ret==0) {
+		LM_NOTICE("transaction already in process %p\n", get_t());
+	}
+
+	return ki_t_reply(msg, code, reason);
+}
+
+/**
+ *
+ */
+static int w_t_send_reply(struct sip_msg* msg, char* p1, char* p2)
+{
+	int code;
+	str reason;
+
+	if (msg->REQ_METHOD==METHOD_ACK) {
+		LM_DBG("ACKs are not replied\n");
+		return -1;
+	}
+
+	if (get_int_fparam(&code, msg, (fparam_t*)p1) < 0) {
+		code = cfg_get(tm, tm_cfg, default_code);
+	}
+
+	if (get_str_fparam(&reason, msg, (fparam_t*)p2) < 0) {
+		reason.s = cfg_get(tm, tm_cfg, default_reason);
+		reason.len = strlen(reason.s);
+	}
+
+	return ki_t_send_reply(msg, code, &reason);
+}
+
+/**
+ *
+ */
 static int t_release(sip_msg_t* msg)
 {
 	struct cell *t;
@@ -2248,24 +2304,6 @@ static int w_t_save_lumps(struct sip_msg* msg, char* foo, char* bar)
 	return ki_t_save_lumps(msg);
 }
 
-/* wrapper function needed after changes in w_t_reply */
-int w_t_reply_wrp(struct sip_msg *m, unsigned int code, char *txt)
-{
-	fparam_t c;
-	fparam_t r;
-
-	c.type = FPARAM_INT;
-	c.orig = NULL; /* ? */
-	c.v.i = code;
-
-	r.type = FPARAM_STRING;
-	r.orig = NULL; /* ? */
-	r.v.asciiz = txt;
-
-	return w_t_reply(m, (char *)&c, (char*)&r);
-}
-
-
 
 /** script function, check if a msg is assoc. to a transaction.
  * @return -1 (not), 1 (reply, e2e ack or cancel for an existing transaction),
@@ -2737,14 +2775,6 @@ static int ki_t_relay(sip_msg_t *msg)
 /**
  *
  */
-static int ki_t_reply(sip_msg_t *msg, int code, str *reason)
-{
-	return w_t_reply_wrp(msg, (unsigned int)code, reason->s);
-}
-
-/**
- *
- */
 static sr_kemi_t tm_kemi_exports[] = {
 	{ str_init("tm"), str_init("t_relay"),
 		SR_KEMIP_INT, ki_t_relay,
@@ -2773,6 +2803,11 @@ static sr_kemi_t tm_kemi_exports[] = {
 	},
 	{ str_init("tm"), str_init("t_reply"),
 		SR_KEMIP_INT, ki_t_reply,
+		{ SR_KEMIP_INT, SR_KEMIP_STR, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init("tm"), str_init("t_send_reply"),
+		SR_KEMIP_INT, ki_t_send_reply,
 		{ SR_KEMIP_INT, SR_KEMIP_STR, SR_KEMIP_NONE,
 			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
 	},
