@@ -30,6 +30,7 @@
 #include "../../core/lvalue.h"
 #include "../../core/pvar.h"
 #include "../../core/kemi.h"
+#include "../../core/parser/parse_uri.h"
 
 #include "corex_lib.h"
 #include "corex_rpc.h"
@@ -752,6 +753,51 @@ static int w_via_add_xavp_params(sip_msg_t *msg, char *pflags, char *s2)
 /**
  *
  */
+static int ki_has_ruri_user(sip_msg_t *msg)
+{
+	if(msg==NULL)
+		return -1;
+
+	if(msg->first_line.type == SIP_REPLY)	/* REPLY doesnt have a ruri */
+		return -1;
+
+	if(msg->parsed_uri_ok==0 /* R-URI not parsed*/ && parse_sip_msg_uri(msg)<0) {
+		LM_ERR("failed to parse the R-URI\n");
+		return -1;
+	}
+
+	if(msg->parsed_uri.user.s!=NULL && msg->parsed_uri.user.len>0) {
+		return 1;
+	}
+
+	return -1;
+}
+
+/**
+ *
+ */
+static int ki_has_user_agent(sip_msg_t *msg)
+{
+	if(msg==NULL)
+		return -1;
+
+	if(msg->user_agent==NULL && ((parse_headers(msg, HDR_USERAGENT_F, 0)==-1)
+			|| (msg->user_agent==NULL)))
+	{
+		LM_DBG("no User-Agent header\n");
+		return -1;
+	}
+
+	if(msg->user_agent->body.s!=NULL && msg->user_agent->body.len>0) {
+		return 1;
+	}
+
+	return -1;
+}
+
+/**
+ *
+ */
 /* clang-format off */
 static sr_kemi_t sr_kemi_corex_exports[] = {
 	{ str_init("corex"), str_init("append_branch"),
@@ -809,6 +855,17 @@ static sr_kemi_t sr_kemi_corex_exports[] = {
 		{ SR_KEMIP_INT, SR_KEMIP_NONE, SR_KEMIP_NONE,
 			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
 	},
+	{ str_init("corex"), str_init("has_ruri_user"),
+		SR_KEMIP_INT, ki_has_ruri_user,
+		{ SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init("corex"), str_init("has_user_agent"),
+		SR_KEMIP_INT, ki_has_user_agent,
+		{ SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+
 	{ {0, 0}, {0, 0}, 0, NULL, { 0, 0, 0, 0, 0, 0 } }
 };
 /* clang-format on */
