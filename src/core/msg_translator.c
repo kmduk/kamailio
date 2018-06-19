@@ -170,12 +170,17 @@ static int check_via_address(struct ip_addr* ip, str *name,
 						(name->s[name->len-1]==']')&&
 						(strncasecmp(name->s+1, s, len)==0))
 				)
-		   )
+		   ) {
 			return 0;
-		else
-
+		}
+		else {
+			if (unlikely(name->s==NULL)) {
+				LM_CRIT("invalid Via host name\n");
+				return -1;
+			}
 			if (strncmp(name->s, s, name->len)==0)
 				return 0;
+		}
 	}else{
 		LM_CRIT("could not convert ip address\n");
 		return -1;
@@ -2940,7 +2945,7 @@ char* create_via_hf( unsigned int *len,
 		xparams.len = xavp_serialize_fields(&_ksr_xavp_via_params,
 							xparams.s, pv_get_buffer_size());
 		if(xparams.len>0) {
-			via = (char*)pkg_malloc(extra_params.len+xparams.len+1);
+			via = (char*)pkg_malloc(extra_params.len+xparams.len+2);
 			if(via==0) {
 				LM_ERR("building xavps params failed\n");
 				if (extra_params.s) pkg_free(extra_params.s);
@@ -2950,7 +2955,10 @@ char* create_via_hf( unsigned int *len,
 				memcpy(via, extra_params.s, extra_params.len);
 				pkg_free(extra_params.s);
 			}
-			memcpy(via + extra_params.len, xparams.s, xparams.len);
+			/* add ';' between via parameters */
+			via[extra_params.len] = ';';
+			/* skip last ';' from xavp serialized output */
+			memcpy(via + extra_params.len + 1, xparams.s, xparams.len - 1);
 			extra_params.s = via;
 			extra_params.len += xparams.len;
 			extra_params.s[extra_params.len] = '\0';

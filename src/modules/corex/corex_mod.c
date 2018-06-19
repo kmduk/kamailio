@@ -41,9 +41,10 @@ MODULE_VERSION
 
 static int nio_intercept = 0;
 static int w_append_branch(sip_msg_t *msg, char *su, char *sq);
-static int w_send(sip_msg_t *msg, char *su, char *sq);
+static int w_send_udp(sip_msg_t *msg, char *su, char *sq);
 static int w_send_tcp(sip_msg_t *msg, char *su, char *sq);
 static int w_send_data(sip_msg_t *msg, char *suri, char *sdata);
+static int w_sendx(sip_msg_t *msg, char *suri, char *ssock, char *sdata);
 static int w_msg_iflag_set(sip_msg_t *msg, char *pflag, char *p2);
 static int w_msg_iflag_reset(sip_msg_t *msg, char *pflag, char *p2);
 static int w_msg_iflag_is_set(sip_msg_t *msg, char *pflag, char *p2);
@@ -80,15 +81,17 @@ static cmd_export_t cmds[]={
 		0, REQUEST_ROUTE | FAILURE_ROUTE },
 	{"append_branch", (cmd_function)w_append_branch, 2, fixup_spve_spve,
 		0, REQUEST_ROUTE | FAILURE_ROUTE },
-	{"send", (cmd_function)w_send, 0, 0,
+	{"send_udp", (cmd_function)w_send_udp, 0, 0,
 		0, REQUEST_ROUTE | FAILURE_ROUTE },
-	{"send", (cmd_function)w_send, 1, fixup_spve_spve,
+	{"send_udp", (cmd_function)w_send_udp, 1, fixup_spve_null,
 		0, REQUEST_ROUTE | FAILURE_ROUTE },
 	{"send_tcp", (cmd_function)w_send_tcp, 0, 0,
 		0, REQUEST_ROUTE | FAILURE_ROUTE },
 	{"send_tcp", (cmd_function)w_send_tcp, 1, fixup_spve_null,
 		0, REQUEST_ROUTE | FAILURE_ROUTE },
 	{"send_data", (cmd_function)w_send_data, 2, fixup_spve_spve,
+		0, ANY_ROUTE },
+	{"sendx", (cmd_function)w_sendx, 3, fixup_spve_all,
 		0, ANY_ROUTE },
 	{"is_incoming",    (cmd_function)nio_check_incoming, 0, 0,
 		0, ANY_ROUTE },
@@ -203,14 +206,18 @@ static int w_append_branch(sip_msg_t *msg, char *su, char *sq)
 }
 
 /**
- * config wrapper for send() and send_tcp()
+ * config wrapper for send_udp()
  */
-static int w_send(sip_msg_t *msg, char *su, char *sq)
+static int w_send_udp(sip_msg_t *msg, char *su, char *sq)
 {
 	if(corex_send(msg, (gparam_t*)su, PROTO_UDP) < 0)
 		return -1;
 	return 1;
 }
+
+/**
+ * config wrapper for send_tcp()
+ */
 static int w_send_tcp(sip_msg_t *msg, char *su, char *sq)
 {
 	if(corex_send(msg, (gparam_t*)su, PROTO_TCP) < 0)
@@ -233,7 +240,47 @@ static int w_send_data(sip_msg_t *msg, char *suri, char *sdata)
 		LM_ERR("cannot get the destination parameter\n");
 		return -1;
 	}
-	if(corex_send_data(&uri, &data) < 0)
+	if(corex_send_data(&uri, NULL, &data) < 0)
+		return -1;
+	return 1;
+}
+
+static int ki_send_data(sip_msg_t *msg, str *uri, str *data)
+{
+	if(corex_send_data(uri, NULL, data) < 0)
+		return -1;
+	return 1;
+}
+
+static int w_sendx(sip_msg_t *msg, char *suri, char *ssock, char *sdata)
+{
+	str uri;
+	str sock;
+	str data;
+
+	if (fixup_get_svalue(msg, (gparam_t*)suri, &uri))
+	{
+		LM_ERR("cannot get the destination parameter\n");
+		return -1;
+	}
+	if (fixup_get_svalue(msg, (gparam_t*)ssock, &sock))
+	{
+		LM_ERR("cannot get the socket parameter\n");
+		return -1;
+	}
+	if (fixup_get_svalue(msg, (gparam_t*)sdata, &data))
+	{
+		LM_ERR("cannot get the destination parameter\n");
+		return -1;
+	}
+	if(corex_send_data(&uri, &sock, &data) < 0)
+		return -1;
+	return 1;
+}
+
+static int ki_sendx(sip_msg_t *msg, str *uri, str *sock, str *data)
+{
+	if(corex_send_data(uri, sock, data) < 0)
 		return -1;
 	return 1;
 }
@@ -863,6 +910,16 @@ static sr_kemi_t sr_kemi_corex_exports[] = {
 	{ str_init("corex"), str_init("has_user_agent"),
 		SR_KEMIP_INT, ki_has_user_agent,
 		{ SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init("corex"), str_init("send_data"),
+		SR_KEMIP_INT, ki_send_data,
+		{ SR_KEMIP_STR, SR_KEMIP_STR, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init("corex"), str_init("sendx"),
+		SR_KEMIP_INT, ki_sendx,
+		{ SR_KEMIP_STR, SR_KEMIP_STR, SR_KEMIP_STR,
 			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
 	},
 
