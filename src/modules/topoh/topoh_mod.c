@@ -116,18 +116,16 @@ static cmd_export_t cmds[]={
 
 /** module exports */
 struct module_exports exports= {
-	"topoh",
+	"topoh",         /* module name */
 	DEFAULT_DLFLAGS, /* dlopen flags */
-	cmds,
-	params,
-	0,          /* exported statistics */
-	0,          /* exported MI functions */
-	0,          /* exported pseudo-variables */
-	0,          /* extra processes */
-	mod_init,   /* module initialization function */
-	0,
-	0,
-	0           /* per-child init function */
+	cmds,            /* exported functions */
+	params,          /* exported parameters */
+	0,               /* exported rpc functions */
+	0,               /* exported pseudo-variables */
+	0,               /* response handling function */
+	mod_init,        /* module init function */
+	0,               /* per-child init function */
+	0                /* module destroy function */
 };
 
 /**
@@ -286,6 +284,12 @@ int th_prepare_msg(sip_msg_t *msg)
 	{
 		LM_ERR("cannot get TO header\n");
 		return 3;
+	}
+
+	if(msg->via1==NULL || msg->callid==NULL) {
+		LM_ERR("mandatory headers missing - via1: %p callid: %p\n",
+				msg->via1, msg->callid);
+		return 4;
 	}
 
 	return 0;
@@ -550,7 +554,7 @@ int th_execute_event_route(sip_msg_t *msg, sr_event_param_t *evp)
 		run_top_route(event_rt.rlist[_th_eventrt_outgoing], fmsg, &ctx);
 	} else {
 		if(keng!=NULL) {
-			if(keng->froute(fmsg, EVENT_ROUTE,
+			if(sr_kemi_ctx_route(keng, &ctx, fmsg, EVENT_ROUTE,
 						&_th_eventrt_callback, &_th_eventrt_name)<0) {
 				LM_ERR("error running event route kemi callback\n");
 				p_onsend=NULL;

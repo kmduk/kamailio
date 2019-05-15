@@ -190,20 +190,17 @@ static pv_export_t mod_items[] = {
 
 
 struct module_exports exports = {
-	"cfgutils",
+	"cfgutils",          /* module name */
 	DEFAULT_DLFLAGS, /* dlopen flags */
-	cmds,        /* exported functions */
-	params,      /* exported parameters */
-	0,           /* exported statistics */
-	0,           /* exported MI functions */
-	mod_items,   /* exported pseudo-variables */
-	0,           /* extra processes */
-	mod_init,    /* module initialization function */
-	0,           /* response function*/
-	mod_destroy, /* destroy function */
-	0            /* per-child init function */
+	cmds,            /* cmd (cfg function) exports */
+	params,          /* param exports */
+	0,               /* RPC method exports */
+	mod_items,       /* pseudo-variables exports */
+	0,               /* response handling function */
+	mod_init,        /* module init function */
+	0,               /* per-child init function */
+	mod_destroy      /* module destroy function */
 };
-
 
 /**************************** fixup functions ******************************/
 static int fixup_prob( void** param, int param_no)
@@ -626,6 +623,12 @@ static int m_sleep(struct sip_msg *msg, char *time, char *str2)
 	return 1;
 }
 
+static int ki_sleep(sip_msg_t* msg, int v)
+{
+	sleep((unsigned int)v);
+	return 1;
+}
+
 static int m_usleep(struct sip_msg *msg, char *time, char *str2)
 {
 	int s;
@@ -635,6 +638,12 @@ static int m_usleep(struct sip_msg *msg, char *time, char *str2)
 		return -1;
 	}
 	sleep_us((unsigned int)s);
+	return 1;
+}
+
+static int ki_usleep(sip_msg_t* msg, int v)
+{
+	sleep_us((unsigned int)v);
 	return 1;
 }
 
@@ -705,7 +714,8 @@ static int cfg_lock_helper(str *lkey, int mode)
 	unsigned int pos;
 
 	if(_cfg_lock_set==NULL) {
-		LM_ERR("lock set not initialized (attempt to do op: %d on: %.*s)\n",
+		LM_ERR("lock set not initialized (attempt to do op: %d on: %.*s) -"
+				" see param lock_set_size\n",
 				mode, lkey->len, lkey->s);
 		return -1;
 	}
@@ -900,6 +910,7 @@ static void mod_destroy(void)
 	{
 		lock_set_destroy(_cfg_lock_set);
 		lock_set_dealloc(_cfg_lock_set);
+		_cfg_lock_set = NULL;
 	}
 }
 
@@ -1054,6 +1065,16 @@ static sr_kemi_t sr_kemi_cfgutils_exports[] = {
 	{ str_init("cfgutils"), str_init("core_hash"),
 		SR_KEMIP_INT, ki_core_hash,
 		{ SR_KEMIP_STR, SR_KEMIP_STR, SR_KEMIP_INT,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init("cfgutils"), str_init("sleep"),
+		SR_KEMIP_INT, ki_sleep,
+		{ SR_KEMIP_INT, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init("cfgutils"), str_init("usleep"),
+		SR_KEMIP_INT, ki_usleep,
+		{ SR_KEMIP_INT, SR_KEMIP_NONE, SR_KEMIP_NONE,
 			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
 	},
 

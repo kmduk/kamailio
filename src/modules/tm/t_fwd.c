@@ -347,7 +347,7 @@ static int prepare_new_uac( struct cell *t, struct sip_msg *i_req,
 					bctx = sr_kemi_act_ctx_get();
 					init_run_actions_ctx(&ctx);
 					sr_kemi_act_ctx_set(&ctx);
-					if(keng->froute(i_req, BRANCH_ROUTE,
+					if(sr_kemi_route(keng, i_req, BRANCH_ROUTE,
 							sr_kemi_cbname_lookup_idx(branch_route), NULL)<0) {
 						LM_ERR("error running branch route kemi callback\n");
 					}
@@ -1718,7 +1718,7 @@ int t_forward_nonack( struct cell *t, struct sip_msg* p_msg,
 	setbflagsval(0, backup_bflags);
 
 	/* update message flags, if changed in branch route */
-	t->uas.request->flags = p_msg->flags;
+	if(t->uas.request) t->uas.request->flags = p_msg->flags;
 
 	/* don't forget to clear all branches processed so far */
 
@@ -1782,7 +1782,7 @@ canceled:
 	/* restore backup flags from initial env */
 	setbflagsval(0, backup_bflags);
 	/* update message flags, if changed in branch route */
-	t->uas.request->flags = p_msg->flags;
+	if(t->uas.request) t->uas.request->flags = p_msg->flags;
 	ser_error=E_CANCELED;
 	return -1;
 }

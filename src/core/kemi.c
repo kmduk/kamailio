@@ -31,6 +31,7 @@
 #include "data_lump.h"
 #include "data_lump_rpl.h"
 #include "strutils.h"
+#include "select_buf.h"
 #include "mem/shm.h"
 #include "parser/parse_uri.h"
 #include "parser/parse_from.h"
@@ -274,10 +275,28 @@ static int sr_kemi_core_is_myself_suri(sip_msg_t *msg)
 
 	if(get_src_uri(msg, 0, &suri)<0) {
 		LM_ERR("cannot src address uri\n");
-		return SR_KEMI_FALSE; 
+		return SR_KEMI_FALSE;
 	}
 
 	return sr_kemi_core_is_myself(msg, &suri);
+}
+
+/**
+ *
+ */
+static int sr_kemi_core_is_myself_srcip(sip_msg_t *msg)
+{
+	str srcip;
+	int ret;
+
+	srcip.s = ip_addr2a(&msg->rcv.src_ip);
+	srcip.len = strlen(srcip.s);
+
+	ret = check_self(&srcip, 0, 0);
+	if(ret==1) {
+		return SR_KEMI_TRUE;
+	}
+	return SR_KEMI_FALSE;
 }
 
 /**
@@ -977,6 +996,95 @@ static int sr_kemi_core_is_method_prack(sip_msg_t *msg)
 /**
  *
  */
+static int sr_kemi_core_is_proto_udp(sip_msg_t *msg)
+{
+	return (msg->rcv.proto == PROTO_UDP)?SR_KEMI_TRUE:SR_KEMI_FALSE;
+}
+
+/**
+ *
+ */
+static int sr_kemi_core_is_proto_tcp(sip_msg_t *msg)
+{
+	return (msg->rcv.proto == PROTO_TCP)?SR_KEMI_TRUE:SR_KEMI_FALSE;
+}
+
+/**
+ *
+ */
+static int sr_kemi_core_is_proto_tls(sip_msg_t *msg)
+{
+	return (msg->rcv.proto == PROTO_TLS)?SR_KEMI_TRUE:SR_KEMI_FALSE;
+}
+
+/**
+ *
+ */
+static int sr_kemi_core_is_proto_ws(sip_msg_t *msg)
+{
+	return (msg->rcv.proto == PROTO_WS)?SR_KEMI_TRUE:SR_KEMI_FALSE;
+}
+
+/**
+ *
+ */
+static int sr_kemi_core_is_proto_wss(sip_msg_t *msg)
+{
+	return (msg->rcv.proto == PROTO_WSS)?SR_KEMI_TRUE:SR_KEMI_FALSE;
+}
+
+/**
+ *
+ */
+static int sr_kemi_core_is_proto_sctp(sip_msg_t *msg)
+{
+	return (msg->rcv.proto == PROTO_SCTP)?SR_KEMI_TRUE:SR_KEMI_FALSE;
+}
+
+/**
+ *
+ */
+static int sr_kemi_core_is_af_ipv4(sip_msg_t *msg)
+{
+	if(msg==NULL || msg->rcv.bind_address==NULL) {
+		return SR_KEMI_FALSE;
+	}
+	return (msg->rcv.bind_address->address.af==AF_INET)?SR_KEMI_TRUE:SR_KEMI_FALSE;
+}
+
+/**
+ *
+ */
+static int sr_kemi_core_is_af_ipv6(sip_msg_t *msg)
+{
+	if(msg==NULL || msg->rcv.bind_address==NULL) {
+		return SR_KEMI_FALSE;
+	}
+	return (msg->rcv.bind_address->address.af==AF_INET6)?SR_KEMI_TRUE:SR_KEMI_FALSE;
+}
+
+/**
+ *
+ */
+static int sr_kemi_core_is_src_port(sip_msg_t *msg, int vport)
+{
+	return (vport == (int)msg->rcv.src_port)?SR_KEMI_TRUE:SR_KEMI_FALSE;
+}
+
+/**
+ *
+ */
+static int sr_kemi_core_is_dst_port(sip_msg_t *msg, int vport)
+{
+	if(msg==NULL || msg->rcv.bind_address==NULL) {
+		return SR_KEMI_FALSE;
+	}
+	return (vport == (int)msg->rcv.bind_address->port_no)?SR_KEMI_TRUE:SR_KEMI_FALSE;
+}
+
+/**
+ *
+ */
 static int sr_kemi_core_forward_uri(sip_msg_t *msg, str *vuri)
 {
 	int ret;
@@ -1267,6 +1375,11 @@ static sr_kemi_t _sr_kemi_core[] = {
 		{ SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE,
 			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
 	},
+	{ str_init(""), str_init("is_myself_srcip"),
+		SR_KEMIP_BOOL, sr_kemi_core_is_myself_srcip,
+		{ SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
 	{ str_init(""), str_init("setflag"),
 		SR_KEMIP_BOOL, sr_kemi_core_setflag,
 		{ SR_KEMIP_INT, SR_KEMIP_NONE, SR_KEMIP_NONE,
@@ -1487,6 +1600,56 @@ static sr_kemi_t _sr_kemi_core[] = {
 		{ SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE,
 			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
 	},
+	{ str_init(""), str_init("is_UDP"),
+		SR_KEMIP_BOOL, sr_kemi_core_is_proto_udp,
+		{ SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init(""), str_init("is_TCP"),
+		SR_KEMIP_BOOL, sr_kemi_core_is_proto_tcp,
+		{ SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init(""), str_init("is_TLS"),
+		SR_KEMIP_BOOL, sr_kemi_core_is_proto_tls,
+		{ SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init(""), str_init("is_WS"),
+		SR_KEMIP_BOOL, sr_kemi_core_is_proto_ws,
+		{ SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init(""), str_init("is_WSS"),
+		SR_KEMIP_BOOL, sr_kemi_core_is_proto_wss,
+		{ SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init(""), str_init("is_SCTP"),
+		SR_KEMIP_BOOL, sr_kemi_core_is_proto_sctp,
+		{ SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init(""), str_init("is_IPv4"),
+		SR_KEMIP_BOOL, sr_kemi_core_is_af_ipv4,
+		{ SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init(""), str_init("is_IPv6"),
+		SR_KEMIP_BOOL, sr_kemi_core_is_af_ipv6,
+		{ SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init(""), str_init("is_src_port"),
+		SR_KEMIP_BOOL, sr_kemi_core_is_src_port,
+		{ SR_KEMIP_INT, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init(""), str_init("is_dst_port"),
+		SR_KEMIP_BOOL, sr_kemi_core_is_dst_port,
+		{ SR_KEMIP_INT, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
 
 	{ {0, 0}, {0, 0}, 0, NULL, { 0, 0, 0, 0, 0, 0 } }
 };
@@ -1510,13 +1673,14 @@ static int sr_kemi_hdr_append(sip_msg_t *msg, str *txt)
 
 	hdr = (char*)pkg_malloc(txt->len);
 	if(hdr==NULL) {
-		LM_ERR("no pkg memory left\n");
+		PKG_MEM_ERROR;
 		return -1;
 	}
 	memcpy(hdr, txt->s, txt->len);
 	/* anchor after last header */
 	anchor = anchor_lump(msg, msg->unparsed - msg->buf, 0, 0);
-	if(insert_new_lump_before(anchor, hdr, txt->len, 0) == 0) {
+	if((anchor==NULL)
+			|| (insert_new_lump_before(anchor, hdr, txt->len, 0) == 0)) {
 		LM_ERR("can't insert lump\n");
 		pkg_free(hdr);
 		return -1;
@@ -1570,7 +1734,7 @@ static int sr_kemi_hdr_append_after(sip_msg_t *msg, str *txt, str *hname)
 
 	hdr = (char*)pkg_malloc(txt->len);
 	if(hdr==NULL) {
-		LM_ERR("no pkg memory left\n");
+		PKG_MEM_ERROR;
 		return -1;
 	}
 	memcpy(hdr, txt->s, txt->len);
@@ -1581,13 +1745,15 @@ static int sr_kemi_hdr_append_after(sip_msg_t *msg, str *txt, str *hname)
 		anchor = anchor_lump(msg, hf->name.s + hf->len - msg->buf, 0, 0);
 	}
 
-	LM_DBG("append after [%.*s] the hf: [%.*s]\n", hname->len, hname->s,
-			txt->len, txt->s);
-	if(insert_new_lump_before(anchor, hdr, txt->len, 0) == 0) {
+	if((anchor==NULL)
+			|| (insert_new_lump_before(anchor, hdr, txt->len, 0) == 0)) {
 		LM_ERR("can't insert lump\n");
 		pkg_free(hdr);
 		return -1;
 	}
+	LM_DBG("appended after [%.*s] the hf: [%.*s]\n", hname->len, hname->s,
+			txt->len, txt->s);
+
 	return 1;
 }
 
@@ -1702,13 +1868,14 @@ static int sr_kemi_hdr_insert(sip_msg_t *msg, str *txt)
 	LM_DBG("insert hf: %.*s\n", txt->len, txt->s);
 	hdr = (char*)pkg_malloc(txt->len);
 	if(hdr==NULL) {
-		LM_ERR("no pkg memory left\n");
+		PKG_MEM_ERROR;
 		return -1;
 	}
 	memcpy(hdr, txt->s, txt->len);
 	/* anchor before first header */
 	anchor = anchor_lump(msg, msg->headers->name.s - msg->buf, 0, 0);
-	if(insert_new_lump_before(anchor, hdr, txt->len, 0) == 0) {
+	if((anchor==NULL)
+			|| (insert_new_lump_before(anchor, hdr, txt->len, 0) == 0)) {
 		LM_ERR("can't insert lump\n");
 		pkg_free(hdr);
 		return -1;
@@ -1762,7 +1929,7 @@ static int sr_kemi_hdr_insert_before(sip_msg_t *msg, str *txt, str *hname)
 
 	hdr = (char*)pkg_malloc(txt->len);
 	if(hdr==NULL) {
-		LM_ERR("no pkg memory left\n");
+		PKG_MEM_ERROR;
 		return -1;
 	}
 	memcpy(hdr, txt->s, txt->len);
@@ -1771,13 +1938,15 @@ static int sr_kemi_hdr_insert_before(sip_msg_t *msg, str *txt, str *hname)
 	} else { /* before hf */
 		anchor = anchor_lump(msg, hf->name.s - msg->buf, 0, 0);
 	}
-	LM_DBG("insert before [%.*s] the hf: %.*s\n", hname->len, hname->s,
-			txt->len, txt->s);
-	if(insert_new_lump_before(anchor, hdr, txt->len, 0) == 0) {
+	if((anchor==NULL)
+			|| (insert_new_lump_before(anchor, hdr, txt->len, 0) == 0)) {
 		LM_ERR("can't insert lump\n");
 		pkg_free(hdr);
 		return -1;
 	}
+	LM_DBG("inserted before [%.*s] the hf: %.*s\n", hname->len, hname->s,
+			txt->len, txt->s);
+
 	return 1;
 }
 
@@ -2071,14 +2240,14 @@ int sr_kemi_cbname_list_init(void)
 	if(_sr_kemi_cbname_list_size==NULL) {
 		lock_destroy(_sr_kemi_cbname_lock);
 		lock_dealloc(_sr_kemi_cbname_lock);
-		LM_ERR("no more shared memory\n");
+		SHM_MEM_ERROR;
 		return -1;
 	}
 	*_sr_kemi_cbname_list_size = 0;
 	_sr_kemi_cbname_list
 			= shm_malloc(KEMI_CBNAME_LIST_SIZE*sizeof(sr_kemi_cbname_t));
 	if(_sr_kemi_cbname_list==NULL) {
-		LM_ERR("no more shared memory\n");
+		SHM_MEM_ERROR;
 		shm_free(_sr_kemi_cbname_list_size);
 		_sr_kemi_cbname_list_size = NULL;
 		lock_destroy(_sr_kemi_cbname_lock);
@@ -2241,4 +2410,37 @@ done:
 	sret.s = pbuf;
 	sret.len = strlen(sret.s);
 	return &sret;
+}
+
+/**
+ *
+ */
+int sr_kemi_route(sr_kemi_eng_t *keng, sip_msg_t *msg, int rtype,
+		str *ename, str *edata)
+{
+	flag_t sfbk;
+	int ret;
+
+	sfbk = getsflags();
+	setsflagsval(0);
+	reset_static_buffer();
+	ret = keng->froute(msg, rtype, ename, edata);
+	setsflagsval(sfbk);
+	return ret;
+}
+
+/**
+ *
+ */
+int sr_kemi_ctx_route(sr_kemi_eng_t *keng, run_act_ctx_t *ctx, sip_msg_t *msg,
+		int rtype, str *ename, str *edata)
+{
+	run_act_ctx_t *bctx;
+	int ret;
+
+	bctx = sr_kemi_act_ctx_get();
+	sr_kemi_act_ctx_set(ctx);
+	ret = sr_kemi_route(keng, msg, rtype, ename, edata);
+	sr_kemi_act_ctx_set(bctx);
+	return ret;
 }

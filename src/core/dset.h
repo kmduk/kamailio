@@ -37,6 +37,9 @@
 extern unsigned int nr_branches;
 extern int ruri_is_new;
 
+#define DS_FLAGS    1
+#define DS_PATH     2
+
 /*! \brief
  * Structure for storing branch attributes
  */
@@ -158,7 +161,7 @@ void clear_branches(void);
  * Create a Contact header field from the
  * list of current branches
  */
-char* print_dset(struct sip_msg* msg, int* len);
+char* print_dset(struct sip_msg* msg, int* len, int options);
 
 
 /*! \brief

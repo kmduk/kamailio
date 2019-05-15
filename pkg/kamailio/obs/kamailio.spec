@@ -2,61 +2,97 @@
 %define ver 5.2.0
 %define rel dev1.0%{dist}
 
-%if 0%{?fedora} == 24
+%if 0%{?fedora} == 27
 %define dist_name fedora
 %define dist_version %{?fedora}
 %bcond_without cnxcc
 %bcond_with dnssec
 %bcond_without geoip
 %bcond_without http_async_client
+%bcond_without ims
 %bcond_without jansson
 %bcond_without json
 %bcond_without lua
 %bcond_without kazoo
 %bcond_without memcached
+%bcond_without mongodb
 %bcond_without perl
+%bcond_without phonenum
 %bcond_without rabbitmq
 %bcond_without redis
+%bcond_without ruby
 %bcond_without sctp
 %bcond_without websocket
 %bcond_without xmlrpc
 %endif
 
-%if 0%{?fedora} == 25
+%if 0%{?fedora} == 28
 %define dist_name fedora
 %define dist_version %{?fedora}
 %bcond_without cnxcc
 %bcond_with dnssec
 %bcond_without geoip
 %bcond_without http_async_client
+%bcond_without ims
 %bcond_without jansson
 %bcond_without json
 %bcond_without lua
 %bcond_without kazoo
 %bcond_without memcached
+%bcond_without mongodb
 %bcond_without perl
+%bcond_without phonenum
 %bcond_without rabbitmq
 %bcond_without redis
+%bcond_without ruby
 %bcond_without sctp
 %bcond_without websocket
 %bcond_without xmlrpc
 %endif
 
-%if 0%{?fedora} == 26
+%if 0%{?fedora} == 29
 %define dist_name fedora
 %define dist_version %{?fedora}
 %bcond_without cnxcc
 %bcond_with dnssec
 %bcond_without geoip
 %bcond_without http_async_client
+%bcond_without ims
 %bcond_without jansson
 %bcond_without json
 %bcond_without lua
 %bcond_without kazoo
 %bcond_without memcached
+%bcond_without mongodb
 %bcond_without perl
+%bcond_without phonenum
 %bcond_without rabbitmq
 %bcond_without redis
+%bcond_without ruby
+%bcond_without sctp
+%bcond_without websocket
+%bcond_without xmlrpc
+%endif
+
+%if 0%{?fedora} == 30
+%define dist_name fedora
+%define dist_version %{?fedora}
+%bcond_without cnxcc
+%bcond_with dnssec
+%bcond_without geoip
+%bcond_without http_async_client
+%bcond_without ims
+%bcond_without jansson
+%bcond_without json
+%bcond_without lua
+%bcond_without kazoo
+%bcond_without memcached
+%bcond_without mongodb
+%bcond_without perl
+%bcond_without phonenum
+%bcond_without rabbitmq
+%bcond_without redis
+%bcond_without ruby
 %bcond_without sctp
 %bcond_without websocket
 %bcond_without xmlrpc
@@ -69,14 +105,18 @@
 %bcond_without dnssec
 %bcond_without geoip
 %bcond_with http_async_client
+%bcond_without ims
 %bcond_with jansson
 %bcond_with json
 %bcond_without lua
 %bcond_with kazoo
 %bcond_without memcached
+%bcond_with mongodb
 %bcond_without perl
+%bcond_with phonenum
 %bcond_with rabbitmq
 %bcond_with redis
+%bcond_with ruby
 %bcond_without sctp
 %bcond_without websocket
 %bcond_without xmlrpc
@@ -90,14 +130,18 @@
 %bcond_with dnssec
 %bcond_without geoip
 %bcond_without http_async_client
+%bcond_without ims
 %bcond_without jansson
 %bcond_without json
 %bcond_without lua
 %bcond_without kazoo
 %bcond_without memcached
+%bcond_without mongodb
 %bcond_without perl
+%bcond_without phonenum
 %bcond_without rabbitmq
 %bcond_without redis
+%bcond_without ruby
 %bcond_without sctp
 %bcond_without websocket
 %bcond_without xmlrpc
@@ -110,14 +154,18 @@
 %bcond_with dnssec
 %bcond_without geoip
 %bcond_without http_async_client
+%bcond_without ims
 %bcond_without jansson
 %bcond_without json
 %bcond_without lua
 %bcond_with kazoo
 %bcond_without memcached
+%bcond_with mongodb
 %bcond_without perl
+%bcond_with phonenum
 %bcond_with rabbitmq
 %bcond_without redis
+%bcond_without ruby
 %bcond_without sctp
 %bcond_without websocket
 %bcond_without xmlrpc
@@ -130,14 +178,18 @@
 %bcond_without dnssec
 %bcond_with geoip
 %bcond_with http_async_client
+%bcond_with ims
 %bcond_with jansson
 %bcond_with json
 %bcond_with lua
 %bcond_with kazoo
 %bcond_with memcached
+%bcond_with mongodb
 %bcond_with perl
+%bcond_with phonenum
 %bcond_with rabbitmq
 %bcond_with redis
+%bcond_with ruby
 %bcond_with sctp
 %bcond_with websocket
 %bcond_without xmlrpc
@@ -150,17 +202,26 @@
 %bcond_with dnssec
 %bcond_with geoip
 %bcond_with http_async_client
+%bcond_with ims
 %bcond_with jansson
 %bcond_with json
 %bcond_with lua
 %bcond_with kazoo
 %bcond_with memcached
+%bcond_without mongodb
 %bcond_without perl
-%bcond_without rabbitmq
+%bcond_with phonenum
+%bcond_with rabbitmq
 %bcond_without redis
+%bcond_with ruby
 %bcond_with sctp
 %bcond_with websocket
 %bcond_without xmlrpc
+%endif
+
+# Defining missing macros on RHEL/CentOS 6
+%if 0%{?rhel} == 6
+%define _rundir %{_localstatedir}/run
 %endif
 
 # redefine buggy openSUSE Leap _sharedstatedir macro. More info at https://bugzilla.redhat.com/show_bug.cgi?id=183370
@@ -168,13 +229,29 @@
 %define _sharedstatedir /var/lib
 %endif
 
+# Defining missing macros on OpenSUSE Leap
+%if 0%{?suse_version} == 1315
+%define _fillupdir /var/adm/fillup-templates
+%endif
+%if 0%{?suse_version} == 1330
+%define _fillupdir /var/adm/fillup-templates
+%endif
+
+# Package groups for OpenSUSE is different than others
+%if 0%{?suse_version}
+%define PKGGROUP System/Daemons
+%else
+%define PKGGROUP System Environment/Daemons
+%endif
+
+
 Summary:    Kamailio (former OpenSER) - the Open Source SIP Server
 Name:       %name
 Version:    %ver
 Release:    %rel
 Packager:   Peter Dunkley <peter@dunkley.me.uk>
-License:    GPL
-Group:      System Environment/Daemons
+License:    GPL-2.0
+Group:      %{PKGGROUP}
 Source:     http://kamailio.org/pub/kamailio/%{ver}/src/%{name}-%{ver}_src.tar.gz
 URL:        http://kamailio.org/
 Vendor:     kamailio.org
@@ -188,13 +265,13 @@ Conflicts:  kamailio-ims < %ver, kamailio-java < %ver, kamailio-json < %ver
 Conflicts:  kamailio-lcr < %ver, kamailio-ldap < %ver, kamailio-lua < %ver
 Conflicts:  kamailio-kazoo < %ver
 Conflicts:  kamailio-rabbitmq < %ver
-Conflicts:  kamailio-memcached < %ver, kamailio-mysql < %ver
+Conflicts:  kamailio-memcached < %ver, kamailio-mongodb < %ver, kamailio-mysql < %ver
 Conflicts:  kamailio-outbound < %ver, kamailio-perl < %ver
 Conflicts:  kamailio-postgresql < %ver, kamailio-presence < %ver
 Conflicts:  kamailio-python < %ver
-Conflicts:  kamailio-radius < % ver, kamailio-redis < %ver
-Conflicts:  kamailio-regex < %ver, kamailio-sctp < %ver
-Conflicts:  kamailio-sipdump < %ver
+Conflicts:  kamailio-radius < %ver, kamailio-redis < %ver
+Conflicts:  kamailio-regex < %ver, kamailio-ruby < %ver
+Conflicts:  kamailio-sctp < %ver, kamailio-secfilter < %ver, kamailio-sipdump < %ver
 Conflicts:  kamailio-snmpstats < %ver, kamailio-sqlang < %ver, kamailio-sqlite < %ver
 Conflicts:  kamailio-tls < %ver, kamailio-unixodbc < %ver
 Conflicts:  kamailio-utils < %ver, kamailio-websocket < %ver
@@ -203,7 +280,14 @@ Conflicts:  kamailio-xmlrpc < %ver, kamailio-xmpp < %ver
 Conflicts:  kamailio-uuid < %ver
 BuildRequires:  bison, flex
 %if 0%{?suse_version}
+Requires:  filesystem
 BuildRequires:  systemd-mini, shadow
+%endif
+%if 0%{?fedora} == 27
+BuildRequires:  python3-devel
+%endif
+%if 0%{?fedora} == 28
+BuildRequires:  python3-devel
 %endif
 
 %description
@@ -222,7 +306,7 @@ like Asterisk™, FreeSWITCH™ or SEMS.
 %if %{with jansson}
 %package    acc_json
 Summary:    Account transaction information in a JSON dictionary
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 %if 0%{?suse_version}
 Requires:   libjansson
 BuildRequires:  libjansson-devel
@@ -232,13 +316,13 @@ BuildRequires:  jansson-devel
 %endif
 
 %description    acc_json
-Account transaction information in a JSON dictionary
+Account transaction information in a JSON dictionary.
 %endif
 
 
 %package    auth-ephemeral
 Summary:    Functions for authentication using ephemeral credentials
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   openssl, kamailio = %ver
 BuildRequires:  openssl-devel
 
@@ -248,7 +332,7 @@ Functions for authentication using ephemeral credentials.
 
 %package    auth-xkeys
 Summary:    Functions for authentication using shared keys
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   kamailio = %ver
 
 %description    auth-xkeys
@@ -257,14 +341,19 @@ Functions for authentication using shared keys.
 
 %package    bdb
 Summary:    Berkeley database connectivity for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   kamailio = %ver
 %if 0%{?suse_version}
 Requires:   libdb-4_8
 BuildRequires:  libdb-4_8-devel
 %else
+%if 0%{?rhel} == 6
 Requires:   db4
 BuildRequires:  db4-devel
+%else
+Requires:   libdb
+BuildRequires:  libdb-devel
+%endif
 %endif
 
 %description    bdb
@@ -273,7 +362,7 @@ Berkeley database connectivity for Kamailio.
 
 %package    carrierroute
 Summary:    The carrierroute module for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   kamailio = %ver
 
 %description    carrierroute
@@ -282,7 +371,7 @@ The carrierroute module for Kamailio.
 
 %package    cfgt
 Summary:    Unit test config file execution tracing module for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   kamailio = %ver
 
 %description    cfgt
@@ -292,7 +381,7 @@ The unit test config file execution tracing module for Kamailio.
 %if %{with cnxcc}
 %package    cnxcc
 Summary:    Module provides a mechanism to limit call duration
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   libevent, hiredis, kamailio = %ver
 BuildRequires:  libevent-devel, hiredis-devel
 
@@ -303,7 +392,7 @@ Module which provides a mechanism to limit call duration based on credit informa
 
 %package    cpl
 Summary:    CPL (Call Processing Language) interpreter for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   libxml2, kamailio = %ver
 BuildRequires:  libxml2-devel
 
@@ -312,8 +401,8 @@ CPL (Call Processing Language) interpreter for Kamailio.
 
 
 %package    crypto
-Summary:    Module to support cryptographic extensions for use in the Kamailio configuration
-Group:      System Environment/Daemons
+Summary:    Module to support cryptographic extensions
+Group:      %{PKGGROUP}
 Requires:   kamailio = %ver
 %if 0%{?rhel} == 6
 Requires:   openssl
@@ -338,7 +427,7 @@ This module provides various cryptography tools for use in Kamailio configuratio
 
 %package    dialplan
 Summary:    String translations based on rules for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   pcre, kamailio = %ver
 BuildRequires:  pcre-devel
 
@@ -348,7 +437,7 @@ String translations based on rules for Kamailio.
 
 %package    dmq_userloc
 Summary:    User location records replication between multiple servers
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   kamailio = %ver
 
 %description    dmq_userloc
@@ -358,7 +447,7 @@ User location (usrloc) records replication between multiple servers via DMQ modu
 %if %{with dnssec}
 %package    dnssec
 Summary:    DNSSEC support for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   dnssec-tools-libs, kamailio = %ver
 BuildRequires:  dnssec-tools-libs-devel
 
@@ -370,7 +459,7 @@ DNSSEC support for Kamailio.
 %if %{with geoip}
 %package    geoip
 Summary:    MaxMind GeoIP support for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   GeoIP, kamailio = %ver
 BuildRequires:  GeoIP-devel
 
@@ -381,7 +470,7 @@ MaxMind GeoIP support for Kamailio.
 
 %package    gzcompress
 Summary:    Compressed body (SIP and HTTP) handling for kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   zlib, kamailio = %ver
 BuildRequires:  zlib-devel
 
@@ -392,7 +481,7 @@ Compressed body (SIP and HTTP) handling for kamailio.
 %if %{with http_async_client}
 %package    http_async_client
 Summary:    Async HTTP client module for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   libevent, kamailio = %ver
 BuildRequires: libevent-devel
 %if 0%{?suse_version}
@@ -409,7 +498,7 @@ This module implements protocol functions that use the libcurl to communicate wi
 
 %package    http_client
 Summary:    HTTP client module for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   kamailio = %ver
 %if 0%{?suse_version}
 Requires:   libcurl4, libxml2-tools
@@ -423,20 +512,22 @@ BuildRequires:  libxml2-devel, libcurl-devel, zlib-devel
 This module implements protocol functions that use the libcurl to communicate with HTTP servers. 
 
 
+%if %{with ims}
 %package    ims
 Summary:    IMS modules and extensions module for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   libxml2, kamailio = %ver
-BuildRequires:  libxml2-devel
+BuildRequires:  libxml2-devel libmnl-devel
 
 %description    ims
 IMS modules and extensions module for Kamailio.
+%endif
 
 
 %if %{with jansson}
 %package    jansson
 Summary:    JSON string handling and RPC modules for Kamailio using JANSSON library
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   libevent, kamailio = %ver
 %if 0%{?suse_version}
 Requires:   libjson-c2
@@ -454,7 +545,7 @@ JSON string handling and RPC modules for Kamailio using JANSSON library.
 %if %{with json}
 %package    json
 Summary:    JSON string handling and RPC modules for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   libevent, kamailio = %ver
 BuildRequires:  libevent-devel
 %if 0%{?suse_version}
@@ -473,7 +564,7 @@ JSON string handling and RPC modules for Kamailio.
 %if %{with kazoo}
 %package    kazoo
 Summary:    Kazoo middle layer connector support for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   libuuid, librabbitmq, json-c, libevent, kamailio = %ver
 BuildRequires:  libuuid-devel, librabbitmq-devel, json-c-devel, libevent-devel
 
@@ -484,7 +575,7 @@ Kazoo module for Kamailio.
 
 %package    lcr
 Summary:    Least cost routing for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   pcre, kamailio = %ver
 BuildRequires:  pcre-devel
 
@@ -494,7 +585,7 @@ Least cost routing for Kamailio.
 
 %package    ldap
 Summary:    LDAP search interface for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   kamailio = %ver
 %if 0%{?suse_version}
 Requires:   openldap2 libsasl2-3
@@ -508,19 +599,10 @@ BuildRequires:  openldap-devel
 LDAP search interface for Kamailio.
 
 
-%package    log_custom
-Summary:    Logging to custom backends from Kamailio
-Group:      System Environment/Daemons
-Requires:   kamailio = %ver
-
-%description    log_custom
-This module provides logging to custom systems, replacing the default core logging to syslog.
-
-
 %if %{with lua}
 %package    lua
 Summary:    Lua extensions for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   kamailio = %ver
 BuildRequires:  lua-devel
 
@@ -532,7 +614,7 @@ Lua extensions for Kamailio.
 %if %{with memcached}
 %package    memcached
 Summary:    Memcached configuration file support for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   libmemcached, kamailio = %ver
 BuildRequires:  libmemcached-devel
 
@@ -541,9 +623,22 @@ Memcached configuration file support for Kamailio.
 %endif
 
 
+%if %{with mongodb}
+%package    mongodb
+Summary:    MongoDB database connectivity for Kamailio
+Group:      %{PKGGROUP}
+Requires:   kamailio = %ver
+Requires:   mongo-c-driver
+BuildRequires:  mongo-c-driver-devel
+
+%description    mongodb
+MongoDB database connectivity for Kamailio.
+%endif
+
+
 %package    mysql
 Summary:    MySQL database connectivity for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   kamailio = %ver
 BuildRequires:  zlib-devel
 %if 0%{?suse_version}
@@ -560,7 +655,7 @@ MySQL database connectivity for Kamailio.
 
 %package    outbound
 Summary:    Outbound (RFC 5626) support for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   openssl, kamailio = %ver
 BuildRequires:  openssl-devel
 
@@ -572,14 +667,14 @@ Protocol (SIP)" support for Kamailio.
 %if %{with perl}
 %package    perl
 Summary:    Perl extensions and database driver for Kamailio
-Group:      System Environment/Daemons 
+Group:      %{PKGGROUP} 
 Requires:   kamailio = %ver
 %if 0%{?suse_version}
 Requires:   perl
 BuildRequires:  perl
 %else
-Requires:   mod_perl
-BuildRequires:  mod_perl-devel
+Requires:   perl-libs
+BuildRequires:  perl-ExtUtils-Embed
 %endif
 
 %description    perl
@@ -587,9 +682,22 @@ Perl extensions and database driver for Kamailio.
 %endif
 
 
+%if %{with phonenum}
+%package    phonenum
+Summary:    Phonenum module the Kamailio
+Group:      %{PKGGROUP}
+Requires:   kamailio = %ver
+Requires:   libphonenumber
+BuildRequires:  libphonenumber-devel libicu-devel protobuf-devel
+
+%description    phonenum
+Phonenum module the Kamailio.
+%endif
+
+
 %package    postgresql
 Summary:    PostgreSQL database connectivity for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   kamailio = %ver
 %if 0%{?suse_version}
 Requires:   libpq5
@@ -605,7 +713,7 @@ PostgreSQL database connectivity for Kamailio.
 
 %package    presence
 Summary:    SIP Presence (and RLS, XCAP, etc) support for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   libxml2, kamailio = %ver, kamailio-xmpp = %ver
 BuildRequires:  libxml2-devel
 %if 0%{?suse_version}
@@ -622,9 +730,9 @@ SIP Presence (and RLS, XCAP, etc) support for Kamailio.
 
 %package    python
 Summary:    Python extensions for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   python, kamailio = %ver
-BuildRequires:  python-devel
+BuildRequires:  python, python-devel
 
 %description    python
 Python extensions for Kamailio.
@@ -633,7 +741,7 @@ Python extensions for Kamailio.
 %if %{with rabbitmq}
 %package    rabbitmq
 Summary:    RabbitMQ related modules
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   libuuid, librabbitmq, kamailio = %ver
 BuildRequires:    librabbitmq-devel, libuuid-devel
 
@@ -644,7 +752,7 @@ RabbitMQ module for Kamailio.
 
 %package    radius
 Summary:    RADIUS modules for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   kamailio = %ver
 %if 0%{?fedora} || 0%{?suse_version}
 Requires:   freeradius-client
@@ -661,7 +769,7 @@ RADIUS modules for Kamailio.
 %if %{with redis}
 %package    redis
 Summary:    Redis configuration file support for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   hiredis, kamailio = %ver
 BuildRequires:  hiredis-devel
 
@@ -672,7 +780,7 @@ Redis configuration file support for Kamailio.
 
 %package    regex
 Summary:    PCRE mtaching operations for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   pcre, kamailio = %ver
 BuildRequires:  pcre-devel
 
@@ -682,17 +790,29 @@ PCRE mtaching operations for Kamailio.
 
 %package    rtjson
 Summary:    SIP routing based on JSON specifications
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   kamailio = %ver
 
 %description    rtjson
 SIP routing based on JSON specifications.
 
 
+%if %{with ruby}
+%package    ruby
+Summary:    Ruby extensions for Kamailio
+Group:      %{PKGGROUP}
+Requires:   kamailio = %ver
+BuildRequires:  ruby-devel
+
+%description    ruby
+Ruby extensions for Kamailio.
+%endif
+
+
 %if %{with sctp}
 %package    sctp
 Summary:    SCTP transport for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   lksctp-tools, kamailio = %ver
 BuildRequires:  lksctp-tools-devel
 
@@ -701,10 +821,22 @@ SCTP transport for Kamailio.
 %endif
 
 
+%package    secfilter
+Summary:    Additional layer of security over our communications
+Group:      %{PKGGROUP}
+Requires:   kamailio = %ver
+
+%description    secfilter
+Additional layer of security over our communications.
+
+
 %package    sipcapture-daemon-config
-Summary:    reference config for sipcapture daemon
-Group:      System Environment/Daemons
-Requires:   kamailio-sipcapture = %ver
+Summary:    Reference config for sipcapture daemon
+Group:      %{PKGGROUP}
+Requires:   kamailio = %ver
+%if 0%{?suse_version}
+Requires:  filesystem
+%endif
 
 %description    sipcapture-daemon-config
 reference config for sipcapture daemon.
@@ -712,16 +844,25 @@ reference config for sipcapture daemon.
 
 %package    sipdump
 Summary:    This module writes SIP traffic and some associated details into local files
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   kamailio = %ver
 
 %description    sipdump
 This module writes SIP traffic and some associated details into local files
 
 
+%package    sipjson
+Summary:    This module serializes SIP message attributes into a JSON document
+Group:      %{PKGGROUP}
+Requires:   kamailio = %ver
+
+%description    sipjson
+This module serializes SIP message attributes into a JSON document
+
+
 %package    smsops
 Summary:    Tools for handling SMS packets in SIP messages
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   kamailio = %ver
 
 %description    smsops
@@ -730,7 +871,7 @@ This module collects the Transformations for 3GPP-SMS.
 
 %package    snmpstats
 Summary:    SNMP management interface (scalar statistics) for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   kamailio = %ver
 %if 0%{?suse_version}
 Requires:   libsnmp30
@@ -746,7 +887,7 @@ SNMP management interface (scalar statistics) for Kamailio.
 
 %package    statsc
 Summary:    Statistics collecting module providing reports for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   kamailio = %ver
 
 %description    statsc
@@ -755,7 +896,7 @@ This module provides a statistics collector engine.
 
 %package    statsd
 Summary:    Send commands to statsd server
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   kamailio = %ver
 
 %description    statsd
@@ -764,7 +905,7 @@ Send commands to statsd server.
 
 %package        sqlang
 Summary:        Squirrel Language (SQLang) for Kamailio
-Group:          System Environment/Daemons
+Group:          %{PKGGROUP}
 Requires:       squirrel-libs, kamailio = %version
 BuildRequires:  squirrel-devel gcc-c++
 
@@ -774,7 +915,7 @@ app_sqlang module for Kamailio.
 
 %package    sqlite
 Summary:    SQLite database connectivity for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   sqlite, kamailio = %ver
 BuildRequires:  sqlite-devel
 
@@ -784,7 +925,7 @@ SQLite database connectivity for Kamailio.
 
 %package    tls
 Summary:    TLS transport for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   openssl, kamailio = %ver
 BuildRequires:  openssl-devel
 
@@ -794,7 +935,7 @@ TLS transport for Kamailio.
 
 %package    tcpops
 Summary:    On demand and per socket control to the TCP options
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   kamailio = %ver
 
 %description    tcpops
@@ -803,7 +944,7 @@ On demand and per socket control to the TCP options.
 
 %package    topos
 Summary:    Topology stripping module for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   kamailio = %ver
 
 %description    topos
@@ -812,7 +953,7 @@ This module offers topology hiding by stripping the routing headers that could s
 
 %package    unixodbc
 Summary:    UnixODBC database connectivity for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   unixODBC, kamailio = %ver
 BuildRequires:  unixODBC-devel
 
@@ -822,7 +963,7 @@ UnixODBC database connectivity for Kamailio.
 
 %package    utils
 Summary:    Non-SIP utitility functions for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   libxml2, kamailio = %ver
 BuildRequires:  libxml2-devel
 %if 0%{?suse_version}
@@ -840,7 +981,7 @@ Non-SIP utitility functions for Kamailio.
 %if %{with websocket}
 %package    websocket
 Summary:    WebSocket transport for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   libunistring, openssl, kamailio = %ver
 BuildRequires:  libunistring-devel, openssl-devel
 
@@ -851,7 +992,7 @@ WebSocket transport for Kamailio.
 
 %package    xhttp-pi
 Summary:    Web-provisioning interface for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   libxml2, kamailio = %ver
 BuildRequires:  libxml2-devel
 
@@ -861,7 +1002,7 @@ Web-provisioning interface for Kamailio.
 
 %package    xmlops
 Summary:    XML operation functions for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   libxml2, kamailio = %ver
 BuildRequires:  libxml2-devel
 
@@ -872,9 +1013,7 @@ XML operation functions for Kamailio.
 %if %{with xmlrpc}
 %package    xmlrpc
 Summary:    XMLRPC transport and encoding for Kamailio RPCs and MI commands
-Group:      System Environment/Daemons
-#Requires:   libxml2, xmlrpc-c, kamailio = %ver
-#BuildRequires:  libxml2-devel, xmlrpc-c-devel
+Group:      %{PKGGROUP}
 Requires:   libxml2, kamailio = %ver
 BuildRequires:  libxml2-devel
 
@@ -884,7 +1023,7 @@ XMLRPC transport and encoding for Kamailio RPCs and MI commands.
 
 %package    xmpp
 Summary:    SIP/XMPP IM gateway for Kamailio
-Group:      System Environment/Daemons
+Group:      %{PKGGROUP}
 Requires:   kamailio = %ver
 %if 0%{?suse_version}
 Requires:   libexpat1
@@ -900,7 +1039,7 @@ SIP/XMPP IM gateway for Kamailio.
 
 %package        uuid
 Summary:        UUID generator for Kamailio
-Group:          System Environment/Daemons
+Group:          %{PKGGROUP}
 Requires:   kamailio = %ver
 %if 0%{?suse_version}
 Requires:       libuuid1
@@ -917,17 +1056,15 @@ UUID module for Kamailio.
 %prep
 %setup -n %{name}-%{ver}
 
-ln -s ../obs pkg/kamailio/fedora/24
-ln -s ../obs pkg/kamailio/fedora/25
-ln -s ../obs pkg/kamailio/fedora/26
-mkdir -p pkg/kamailio/rhel
+ln -s ../obs pkg/kamailio/fedora/27
+ln -s ../obs pkg/kamailio/fedora/28
+ln -s ../obs pkg/kamailio/fedora/29
 ln -s ../obs pkg/kamailio/rhel/6
 ln -s ../obs pkg/kamailio/rhel/7
-mkdir -p pkg/kamailio/opensuse
 ln -s ../obs pkg/kamailio/opensuse/1315
 ln -s ../obs pkg/kamailio/opensuse/1330
-rm -Rf pkg/kamailio/centos
-mkdir -p pkg/kamailio/centos
+ln -s ../obs pkg/kamailio/opensuse/1500
+ln -s ../obs pkg/kamailio/opensuse/1550
 ln -s ../obs pkg/kamailio/centos/6
 ln -s ../obs pkg/kamailio/centos/7
 
@@ -936,7 +1073,10 @@ ln -s ../obs pkg/kamailio/centos/7
 %if 0%{?fedora} || 0%{?suse_version}
 export FREERADIUS=1
 %endif
-make cfg prefix=/usr basedir=%{buildroot} cfg_prefix=%{buildroot} doc_prefix=%{buildroot} \
+make cfg prefix=/usr \
+    basedir=%{buildroot} \
+    cfg_prefix=%{buildroot} \
+    doc_prefix=%{buildroot} \
     doc_dir=%{_docdir}/kamailio/ \
     cfg_target=%{_sysconfdir}/kamailio/ modules_dirs="modules"
 make
@@ -960,7 +1100,9 @@ make every-module skip_modules="app_mono db_cassandra db_oracle iptrtpproxy \
 %if %{with http_async_client}
     khttp_async \
 %endif
+%if %{with ims}
     kims \
+%endif
 %if %{with jansson}
     kjansson \
 %endif
@@ -984,13 +1126,22 @@ make every-module skip_modules="app_mono db_cassandra db_oracle iptrtpproxy \
 %if %{with xmlrpc}
     kmi_xmlrpc \
 %endif
+%if %{with mongodb}
+    kmongodb \
+%endif
     kmysql koutbound \
 %if %{with perl}
     kperl \
 %endif
+%if %{with phonenum}
+    kphonenum \
+%endif
     kpostgres kpresence kpython kradius \
 %if %{with redis}
     kredis \
+%endif
+%if %{with ruby}
+    kruby \
 %endif
 %if %{with sctp}
     ksctp \
@@ -1029,7 +1180,9 @@ make install-modules-all skip_modules="app_mono db_cassandra db_oracle \
 %if %{with http_async_client}
     khttp_async \
 %endif
+%if %{with ims}
     kims \
+%endif
 %if %{with jansson}
     kjansson \
 %endif
@@ -1053,13 +1206,22 @@ make install-modules-all skip_modules="app_mono db_cassandra db_oracle \
 %if %{with xmlrpc}
     kmi_xmlrpc \
 %endif
+%if %{with mongodb}
+    kmongodb \
+%endif
     kmysql koutbound \
 %if %{with perl}
     kperl \
 %endif
+%if %{with phonenum}
+    kphonenum \
+%endif
     kpostgres kpresence kpython kradius \
 %if %{with redis}
     kredis \
+%endif
+%if %{with ruby}
+    kruby \
 %endif
 %if %{with sctp}
     ksctp \
@@ -1090,11 +1252,11 @@ install -Dpm 0644 pkg/kamailio/%{dist_name}/%{dist_version}/sipcapture.tmpfiles 
 %endif
 
 %if 0%{?suse_version}
-install -d %{buildroot}/var/adm/fillup-templates/
+install -d %{buildroot}%{_fillupdir}
 install -m644 pkg/kamailio/%{dist_name}/%{dist_version}/kamailio.sysconfig \
-        %{buildroot}/var/adm/fillup-templates/sysconfig.kamailio
+        %{buildroot}%{_fillupdir}/sysconfig.kamailio
 install -m644 pkg/kamailio/%{dist_name}/%{dist_version}/sipcapture.sysconfig \
-        %{buildroot}/var/adm/fillup-templates/sysconfig.sipcapture
+        %{buildroot}%{_fillupdir}/sysconfig.sipcapture
 %else
 install -d %{buildroot}%{_sysconfdir}/sysconfig
 install -m644 pkg/kamailio/%{dist_name}/%{dist_version}/kamailio.sysconfig \
@@ -1106,18 +1268,20 @@ install -m644 pkg/kamailio/%{dist_name}/%{dist_version}/sipcapture.sysconfig \
 %if 0%{?suse_version}
 %py_compile -O %{buildroot}%{_libdir}/kamailio/kamctl/dbtextdb
 %endif
+%if 0%{?fedora}
+%py_byte_compile %{__python2} %{buildroot}%{_libdir}/kamailio/kamctl/dbtextdb
+%endif
 
 # Removing devel files
 rm -f %{buildroot}%{_libdir}/kamailio/lib*.so
 
 %pre
-%if 0%{?suse_version} == 1330
-if ! /usr/bin/getent group daemon &>/dev/null; then
-    /usr/sbin/groupadd --gid 2 daemon &> /dev/null
-fi
-%endif
 if ! /usr/bin/id kamailio &>/dev/null; then
-       /usr/sbin/useradd -r -g daemon -s /bin/false -c "Kamailio daemon" -d %{_libdir}/kamailio kamailio || \
+       /usr/sbin/useradd --system \
+                         --user-group \
+                         --shell /bin/false \
+                         --comment "Kamailio SIP Server" \
+                         --home-dir %{_rundir}/kamailio kamailio || \
                 %logmsg "Unexpected error adding user \"kamailio\". Aborting installation."
 fi
 
@@ -1242,6 +1406,7 @@ fi
 %doc %{_docdir}/kamailio/modules/README.siputils
 %doc %{_docdir}/kamailio/modules/README.sl
 %doc %{_docdir}/kamailio/modules/README.sms
+%doc %{_docdir}/kamailio/modules/README.smsops
 %doc %{_docdir}/kamailio/modules/README.speeddial
 %doc %{_docdir}/kamailio/modules/README.sqlops
 %doc %{_docdir}/kamailio/modules/README.ss7ops
@@ -1275,7 +1440,10 @@ fi
 %doc %{_docdir}/kamailio/modules/README.call_obj
 %doc %{_docdir}/kamailio/modules/README.evrexec
 %doc %{_docdir}/kamailio/modules/README.keepalive
-
+%doc %{_docdir}/kamailio/modules/README.log_custom
+%doc %{_docdir}/kamailio/modules/README.statsc
+%doc %{_docdir}/kamailio/modules/README.topos
+%doc %{_docdir}/kamailio/modules/README.cfgt
 
 %dir %attr(-,kamailio,kamailio) %{_sysconfdir}/kamailio
 %config(noreplace) %{_sysconfdir}/kamailio/dictionary.kamailio
@@ -1285,7 +1453,7 @@ fi
 %config(noreplace) %{_sysconfdir}/kamailio/tls.cfg
 %dir %attr(-,kamailio,kamailio) %{_sharedstatedir}/kamailio
 %if 0%{?suse_version}
-/var/adm/fillup-templates/sysconfig.kamailio
+%{_fillupdir}/sysconfig.kamailio
 %else
 %config %{_sysconfdir}/sysconfig/kamailio
 %endif
@@ -1389,6 +1557,7 @@ fi
 %{_libdir}/kamailio/modules/siputils.so
 %{_libdir}/kamailio/modules/sl.so
 %{_libdir}/kamailio/modules/sms.so
+%{_libdir}/kamailio/modules/smsops.so
 %{_libdir}/kamailio/modules/speeddial.so
 %{_libdir}/kamailio/modules/sqlops.so
 %{_libdir}/kamailio/modules/ss7ops.so
@@ -1422,7 +1591,10 @@ fi
 %{_libdir}/kamailio/modules/call_obj.so
 %{_libdir}/kamailio/modules/evrexec.so
 %{_libdir}/kamailio/modules/keepalive.so
-
+%{_libdir}/kamailio/modules/log_custom.so
+%{_libdir}/kamailio/modules/statsc.so
+%{_libdir}/kamailio/modules/topos.so
+%{_libdir}/kamailio/modules/cfgt.so
 
 %{_sbindir}/kamailio
 %{_sbindir}/kamctl
@@ -1556,6 +1728,7 @@ fi
 %doc %{_docdir}/kamailio/modules/README.http_client
 %{_libdir}/kamailio/modules/http_client.so
 
+%if %{with ims}
 %files      ims
 %defattr(-,root,root)
 %{_libdir}/kamailio/libkamailio_ims.so.0
@@ -1563,30 +1736,26 @@ fi
 
 %doc %{_docdir}/kamailio/modules/README.cdp
 %doc %{_docdir}/kamailio/modules/README.cdp_avp
-%doc %{_docdir}/kamailio/modules/README.cfgt
 %doc %{_docdir}/kamailio/modules/README.ims_auth
 %doc %{_docdir}/kamailio/modules/README.ims_charging
 %doc %{_docdir}/kamailio/modules/README.ims_dialog
 %doc %{_docdir}/kamailio/modules/README.ims_diameter_server
 %doc %{_docdir}/kamailio/modules/README.ims_icscf
+%doc %{_docdir}/kamailio/modules/README.ims_ipsec_pcscf
 %doc %{_docdir}/kamailio/modules/README.ims_isc
 %doc %{_docdir}/kamailio/modules/README.ims_ocs
 %doc %{_docdir}/kamailio/modules/README.ims_qos
 %doc %{_docdir}/kamailio/modules/README.ims_registrar_pcscf
 %doc %{_docdir}/kamailio/modules/README.ims_registrar_scscf
 %doc %{_docdir}/kamailio/modules/README.ims_usrloc_pcscf
-%doc %{_docdir}/kamailio/modules/README.log_custom
-%doc %{_docdir}/kamailio/modules/README.smsops
-%doc %{_docdir}/kamailio/modules/README.statsc
-%doc %{_docdir}/kamailio/modules/README.topos
 %{_libdir}/kamailio/modules/cdp.so
 %{_libdir}/kamailio/modules/cdp_avp.so
-%{_libdir}/kamailio/modules/cfgt.so
 %{_libdir}/kamailio/modules/ims_auth.so
 %{_libdir}/kamailio/modules/ims_charging.so
 %{_libdir}/kamailio/modules/ims_dialog.so
 %{_libdir}/kamailio/modules/ims_diameter_server.so
 %{_libdir}/kamailio/modules/ims_icscf.so
+%{_libdir}/kamailio/modules/ims_ipsec_pcscf.so
 %{_libdir}/kamailio/modules/ims_isc.so
 %{_libdir}/kamailio/modules/ims_ocs.so
 %{_libdir}/kamailio/modules/ims_qos.so
@@ -1594,10 +1763,8 @@ fi
 %{_libdir}/kamailio/modules/ims_registrar_scscf.so
 %{_libdir}/kamailio/modules/ims_usrloc_pcscf.so
 %{_libdir}/kamailio/modules/ims_usrloc_scscf.so
-%{_libdir}/kamailio/modules/log_custom.so
-%{_libdir}/kamailio/modules/smsops.so
-%{_libdir}/kamailio/modules/statsc.so
-%{_libdir}/kamailio/modules/topos.so
+%endif
+
 
 %if %{with jansson}
 %files      jansson
@@ -1658,6 +1825,16 @@ fi
 %endif
 
 
+%if %{with mongodb}
+%files      mongodb
+%defattr(-,root,root)
+%doc %{_docdir}/kamailio/modules/README.db_mongodb
+%doc %{_docdir}/kamailio/modules/README.ndb_mongodb
+%{_libdir}/kamailio/modules/db_mongodb.so
+%{_libdir}/kamailio/modules/ndb_mongodb.so
+%endif
+
+
 %files      mysql
 %defattr(-,root,root)
 %doc %{_docdir}/kamailio/modules/README.db_mysql
@@ -1707,6 +1884,14 @@ fi
 %{_libdir}/kamailio/perl/Kamailio/VDB/Adapter/Describe.pm
 %{_libdir}/kamailio/perl/Kamailio/VDB/Adapter/Speeddial.pm
 %{_libdir}/kamailio/perl/Kamailio/VDB/Adapter/TableVersions.pm
+%endif
+
+
+%if %{with phonenum}
+%files      phonenum
+%defattr(-,root,root)
+%doc %{_docdir}/kamailio/modules/README.phonenum
+%{_libdir}/kamailio/modules/phonenum.so
 %endif
 
 
@@ -1818,13 +2003,21 @@ fi
 %defattr(-,root,root)
 %config(noreplace) %{_sysconfdir}/kamailio/kamailio-sipcapture.cfg
 %if 0%{?suse_version}
-/var/adm/fillup-templates/sysconfig.sipcapture
+%{_fillupdir}/sysconfig.sipcapture
 %else
 %config(noreplace) %{_sysconfdir}/sysconfig/sipcapture
 %endif
 %if "%{?_unitdir}" != ""
 %{_unitdir}/sipcapture.service
 %{_tmpfilesdir}/sipcapture.conf
+%endif
+
+
+%if %{with ruby}
+%files      ruby
+%defattr(-,root,root)
+%doc %{_docdir}/kamailio/modules/README.app_ruby
+%{_libdir}/kamailio/modules/app_ruby.so
 %endif
 
 
@@ -1836,10 +2029,22 @@ fi
 %endif
 
 
+%files      secfilter
+%defattr(-,root,root)
+%doc %{_docdir}/kamailio/modules/README.secfilter
+%{_libdir}/kamailio/modules/secfilter.so
+
+
 %files      sipdump
 %defattr(-,root,root)
 %doc %{_docdir}/kamailio/modules/README.sipdump
 %{_libdir}/kamailio/modules/sipdump.so
+
+
+%files      sipjson
+%defattr(-,root,root)
+%doc %{_docdir}/kamailio/modules/README.sipjson
+%{_libdir}/kamailio/modules/sipjson.so
 
 
 %files      snmpstats
@@ -1944,6 +2149,14 @@ fi
 
 
 %changelog
+* Sat Mar 30 2019 Sergey Safarov <s.safarov@gmail.com> 5.3.0-0
+  - Added support of openSUSE:Leap:15.0, openSUSE:Leap:15.1 and Fedora 30 dists
+* Thu Feb 21 2019 Sergey Safarov <s.safarov@gmail.com> 5.3.0-0
+  - Added secfilter package
+* Tue Dec 11 2018 Sergey Safarov <s.safarov@gmail.com> 5.2.0-1
+  - Added Ruby package
+* Sun Nov 04 2018 Sergey Safarov <s.safarov@gmail.com> 5.2.0-0
+  - removed packaging for Fedora 25, 26 as End Of Life
 * Sat Sep 02 2017 Sergey Safarov <s.safarov@gmail.com>
   - added packaging for Fedora 26 and openSUSE Leap 42.3
   - removed packaging for Fedora 24 and openSUSE Leap 42.1 as End Of Life

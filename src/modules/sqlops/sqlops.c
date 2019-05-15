@@ -58,12 +58,11 @@ MODULE_VERSION
 static int bind_sqlops(sqlops_api_t* api);
 
 /** module functions */
+static int sql_check_connection(sql_con_t*);
 static int sql_query(struct sip_msg*, char*, char*, char*);
 static int sql_query2(struct sip_msg*, char*, char*);
 static int sql_query_async(struct sip_msg*, char*, char*);
-#ifdef WITH_XAVP
 static int sql_xquery(struct sip_msg *msg, char *dbl, char *query, char *res);
-#endif
 static int sql_pvquery(struct sip_msg *msg, char *dbl, char *query, char *res);
 static int sql_rfree(struct sip_msg*, char*, char*);
 static int mod_init(void);
@@ -71,9 +70,7 @@ static int child_init(int rank);
 static void destroy(void);
 
 static int fixup_sql_query(void** param, int param_no);
-#ifdef WITH_XAVP
 static int fixup_sql_xquery(void** param, int param_no);
-#endif
 static int fixup_sql_pvquery(void** param, int param_no);
 static int fixup_sql_rfree(void** param, int param_no);
 
@@ -81,6 +78,8 @@ static int sql_con_param(modparam_t type, void* val);
 static int sql_res_param(modparam_t type, void* val);
 
 extern int sqlops_tr_buf_size;
+
+static int sqlops_connect_mode = 0;
 
 static pv_export_t mod_pvs[] = {
 	{ {"dbr", sizeof("dbr")-1}, PVT_OTHER, pv_get_dbr, 0,
@@ -97,10 +96,8 @@ static cmd_export_t cmds[]={
 		ANY_ROUTE},
 	{"sql_query_async",  (cmd_function)sql_query_async, 2, fixup_sql_query, 0,
 		ANY_ROUTE},
-#ifdef WITH_XAVP
 	{"sql_xquery",  (cmd_function)sql_xquery, 3, fixup_sql_xquery, 0,
 		ANY_ROUTE},
-#endif
 	{"sql_pvquery",  (cmd_function)sql_pvquery, 3, fixup_sql_pvquery, 0,
 		ANY_ROUTE},
 	{"sql_result_free",  (cmd_function)sql_rfree,  1, fixup_sql_rfree, 0,
@@ -113,6 +110,7 @@ static param_export_t params[]={
 	{"sqlcon",  PARAM_STRING|USE_FUNC_PARAM, (void*)sql_con_param},
 	{"sqlres",  PARAM_STRING|USE_FUNC_PARAM, (void*)sql_res_param},
 	{"tr_buf_size",     PARAM_INT,   &sqlops_tr_buf_size},
+	{"connect_mode",    PARAM_INT,   &sqlops_connect_mode},
 	{0,0,0}
 };
 
@@ -124,18 +122,16 @@ static tr_export_t mod_trans[] = {
 
 /** module exports */
 struct module_exports exports= {
-	"sqlops",
+	"sqlops",   /* module name */
 	DEFAULT_DLFLAGS, /* dlopen flags */
-	cmds,
-	params,
-	0,          /* exported statistics */
-	0  ,        /* exported MI functions */
+	cmds,       /* exported functions */
+	params,     /* exported parameters */
+	0,          /* exported rpc functions */
 	mod_pvs,    /* exported pseudo-variables */
-	0,          /* extra processes */
-	mod_init,   /* module initialization function */
-	0,
-	(destroy_function) destroy,
-	child_init  /* per-child init function */
+	0,          /* response handling function */
+	mod_init,   /* module init function */
+	child_init, /* per-child init function */
+	destroy     /* module destroy function */
 };
 
 static int mod_init(void)
@@ -148,9 +144,23 @@ static int mod_init(void)
 
 static int child_init(int rank)
 {
+	int ret;
 	if (rank==PROC_INIT || rank==PROC_MAIN || rank==PROC_TCP_MAIN)
 		return 0;
-	return sql_connect();
+
+	ret = sql_connect((sqlops_connect_mode == 1)?1:0);
+
+	LM_DBG("SQL result: %d \n", ret);
+
+	if (ret != 0 && sqlops_connect_mode == 1)
+	{
+		LM_INFO("SQL result: %d but start_without_db_connection enabled - proceed\n",
+				ret);
+		return 0;
+
+	} else {
+		return ret;
+	}
 }
 
 /**
@@ -203,14 +213,36 @@ error:
 	return -1;
 }
 
+static int sql_check_connection(sql_con_t *dbl)
+{
+	if (dbl->dbh != NULL) {
+		return 0;
+	}
+
+	if(sqlops_connect_mode != 1) {
+		LM_CRIT("no database handle with reconnect disabled\n");
+		return -1;
+	}
+
+    LM_DBG("try to establish SQL connection\n");
+	if(sql_reconnect(dbl)<0) {
+		LM_ERR("failed to connect to database\n");
+		return -1;
+	}
+	return 0;
+}
+
 /**
  *
  */
 static int sql_query(struct sip_msg *msg, char *dbl, char *query, char *res)
 {
 	str sq;
-	if(pv_printf_s(msg, (pv_elem_t*)query, &sq)!=0)
-	{
+	if(sql_check_connection((sql_con_t*)dbl)<0) {
+		LM_ERR("invalid connection to database");
+		return -2;
+	}
+	if(pv_printf_s(msg, (pv_elem_t*)query, &sq)!=0) {
 		LM_ERR("cannot print the sql query\n");
 		return -1;
 	}
@@ -225,6 +257,10 @@ static int sql_query2(struct sip_msg *msg, char *dbl, char *query)
 static int sql_query_async(struct sip_msg *msg, char *dbl, char *query)
 {
 	str sq;
+	if(sql_check_connection((sql_con_t*)dbl)<0) {
+		LM_ERR("invalid connection to database");
+		return -2;
+	}
 	if(pv_printf_s(msg, (pv_elem_t*)query, &sq)!=0)
 	{
 		LM_ERR("cannot print the sql query\n");
@@ -234,21 +270,27 @@ static int sql_query_async(struct sip_msg *msg, char *dbl, char *query)
 }
 
 
-#ifdef WITH_XAVP
 /**
  *
  */
 static int sql_xquery(struct sip_msg *msg, char *dbl, char *query, char *res)
 {
+	if(sql_check_connection((sql_con_t*)dbl)<0) {
+		LM_ERR("invalid connection to database");
+		return -2;
+	}
 	return sql_do_xquery(msg, (sql_con_t*)dbl, (pv_elem_t*)query, (pv_elem_t*)res);
 }
-#endif
 
 /**
  *
  */
 static int sql_pvquery(struct sip_msg *msg, char *dbl, char *query, char *res)
 {
+	if(sql_check_connection((sql_con_t*)dbl)<0) {
+		LM_ERR("invalid connection to database");
+		return -2;
+	}
 	return sql_do_pvquery(msg, (sql_con_t*)dbl, (pv_elem_t*)query, (pvname_list_t*)res);
 }
 
@@ -301,7 +343,6 @@ static int fixup_sql_query(void** param, int param_no)
 	return 0;
 }
 
-#ifdef WITH_XAVP
 /**
  *
  */
@@ -339,7 +380,6 @@ static int fixup_sql_xquery(void** param, int param_no)
 	}
 	return 0;
 }
-#endif
 
 /**
  *

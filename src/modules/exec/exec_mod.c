@@ -53,6 +53,7 @@ static int mod_init(void);
 static int w_exec_dset(struct sip_msg *msg, char *cmd, char *foo);
 static int w_exec_msg(struct sip_msg *msg, char *cmd, char *foo);
 static int w_exec_avp(struct sip_msg *msg, char *cmd, char *avpl);
+static int w_exec_cmd(struct sip_msg *msg, char *cmd, char *foo);
 
 static int exec_avp_fixup(void **param, int param_no);
 
@@ -69,8 +70,10 @@ static cmd_export_t cmds[] = {
 		REQUEST_ROUTE|FAILURE_ROUTE|LOCAL_ROUTE},
 	{"exec_avp",  (cmd_function)w_exec_avp,  1, fixup_spve_null,  0,
 		REQUEST_ROUTE|FAILURE_ROUTE|LOCAL_ROUTE},
-	{"exec_avp",  (cmd_function)w_exec_avp,  2, exec_avp_fixup, 0,
+	{"exec_avp",  (cmd_function)w_exec_avp,  2, exec_avp_fixup,   0,
 		REQUEST_ROUTE|FAILURE_ROUTE|LOCAL_ROUTE},
+	{"exec_cmd",  (cmd_function)w_exec_cmd,  1, fixup_spve_null,  0,
+		ANY_ROUTE},
 	{0, 0, 0, 0, 0, 0}
 };
 
@@ -87,18 +90,16 @@ static param_export_t params[] = {
 
 
 struct module_exports exports= {
-	"exec",
-	DEFAULT_DLFLAGS,/* dlopen flags */
-	cmds,           /* Exported functions */
-	params,         /* Exported parameters */
-	0,              /* exported statistics */
-	0,              /* exported MI functions */
-	0,              /* exported pseudo-variables */
-	0,              /* extra processes */
-	mod_init,       /* initialization module */
-	0,              /* response function */
-	exec_shutdown,  /* destroy function */
-	0               /* per-child init function */
+	"exec",				/* module name */
+	DEFAULT_DLFLAGS,	/* dlopen flags */
+	cmds,				/* exported functions */
+	params,				/* exported parameters */
+	0,					/* RPC method exports */
+	0,					/* exported pseudo-variables */
+	0,					/* response handling function */
+	mod_init,			/* module initialization function */
+	0,					/* per-child init function */
+	exec_shutdown		/* module destroy function */
 };
 /* clang-format on */
 
@@ -267,6 +268,34 @@ static int exec_avp_fixup(void **param, int param_no)
 	return 0;
 }
 
+static int ki_exec_cmd(sip_msg_t *msg, str *cmd)
+{
+	int ret;
+
+	if(cmd == 0 || cmd->s == 0)
+		return -1;
+
+	LM_DBG("executing [%s]\n", cmd->s);
+
+	ret = exec_cmd(msg, cmd->s);
+
+	LM_DBG("execution return code: %d\n", ret);
+
+	return (ret == 0) ? 1 : ret;
+}
+
+static int w_exec_cmd(struct sip_msg *msg, char *cmd, char *foo)
+{
+	str command;
+
+	if(fixup_get_svalue(msg, (gparam_p)cmd, &command) != 0) {
+		LM_ERR("invalid command parameter");
+		return -1;
+	}
+	return ki_exec_cmd(msg, &command);
+}
+
+
 /**
  *
  */
@@ -284,6 +313,11 @@ static sr_kemi_t sr_kemi_exec_exports[] = {
 	},
 	{ str_init("exec"), str_init("exec_avp"),
 		SR_KEMIP_INT, ki_exec_avp,
+		{ SR_KEMIP_STR, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init("exec"), str_init("exec_cmd"),
+		SR_KEMIP_INT, ki_exec_cmd,
 		{ SR_KEMIP_STR, SR_KEMIP_NONE, SR_KEMIP_NONE,
 			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
 	},

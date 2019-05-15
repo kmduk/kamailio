@@ -1,5 +1,7 @@
 <!ENTITY user_len "64">
 <!ENTITY domain_len "64">
+<!ENTITY from_tag_len "128">
+<!ENTITY to_tag_len "128">
 <!ENTITY password_len "64">
 <!ENTITY ha1_len "128">
 <!ENTITY realm_len "64">
@@ -22,6 +24,10 @@
 <!ENTITY expires_len "11">
 <!ENTITY flag_len "11">
 <!ENTITY description_len "255">
+<!ENTITY event_len "64">
+<!ENTITY etag_len "128">
+<!ENTITY aname_len "64">
+<!ENTITY avalue_len "512">
 <!ENTITY MYSQL_TABLE_TYPE "">
 <!ENTITY USERCOL "username">
 <!ENTITY DEFAULT_ALIASES_EXPIRES "2030-05-28 21:32:15">

@@ -103,6 +103,9 @@ int send_pr_buffer( struct retr_buf *rb, void *buf, int len);
 			free_cell((_T_cell)); \
 		}else{ \
 			if(_T_unlinked){ \
+				if(t_linked_timers(_T_cell)) { \
+					unlink_timers((_T_cell)); \
+				} \
 				free_cell((_T_cell)); \
 			}else{ \
 				t_stats_delayed_free(); \
@@ -188,6 +191,7 @@ int  t_add_transaction( struct sip_msg* p_msg  );
 
 /* returns 1 if everything was OK or -1 for error */
 int t_release_transaction( struct cell *trans );
+typedef int (*trelease_t)(struct cell *t);
 
 
 int get_ip_and_port_from_uri( str* uri , unsigned int *param_ip,

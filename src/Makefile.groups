@@ -18,17 +18,18 @@ mod_list_basic=async auth benchmark blst cfg_rpc cfgutils corex counters \
 				   auth_xkeys smsops tsilo cfgt statsc topos sipdump
 
 # - extra used modules, with no extra dependency
-mod_list_extra=avp auth_diameter call_control call_obj dmq domainpolicy msrp carrierroute \
-			     pdb qos sca seas sms sst timer tmrec uac_redirect xhttp \
-				 xhttp_rpc xprint jsonrpcs nosip dmq_usrloc statsd rtjson \
-			  log_custom keepalive ss7ops app_sqlang acc_diameter evrexec
+mod_list_extra=avp auth_diameter call_control call_obj dmq domainpolicy msrp \
+			carrierroute pdb qos sca seas sms sst timer tmrec uac_redirect \
+			xhttp xhttp_rpc xprint jsonrpcs nosip dmq_usrloc statsd rtjson \
+			log_custom keepalive ss7ops app_sqlang acc_diameter evrexec \
+			sipjson
 
 # - common modules depending on database
 mod_list_db=acc alias_db auth_db avpops cfg_db db_text db_flatstore \
 			  db_cluster dialog dispatcher domain drouting group \
 			  htable imc matrix mohqueue msilo mtree p_usrloc pdt permissions \
 			  pipelimit prefix_route registrar sipcapture siptrace speeddial \
-			  sqlops uac uri_db userblacklist usrloc
+			  sqlops uac uri_db userblacklist usrloc secfilter
 
 
 # - common modules depending on database, using UID db schema
@@ -164,7 +165,8 @@ mod_list_mono=app_mono
 # - modules related to IMS extensions
 mod_list_ims=cdp cdp_avp ims_dialog ims_auth ims_isc ims_icscf ims_qos \
 			   ims_registrar_pcscf ims_registrar_scscf ims_usrloc_pcscf \
-			   ims_usrloc_scscf ims_charging ims_ocs ims_diameter_server
+			   ims_usrloc_scscf ims_charging ims_ocs ims_diameter_server \
+			   ims_ipsec_pcscf
 
 # - modules depending on osp toolkit library
 mod_list_osp=osp
@@ -205,6 +207,9 @@ mod_list_rabbitmq=rabbitmq
 # - modules depending on libphonenumber library
 mod_list_phonenum=phonenum
 
+# - modules depending on oRTP and mediastreamer2 libraries
+mod_list_rtp_media_server=rtp_media_server
+
 # - all modules
 mod_list_all=$(sort $(mod_list_basic) $(mod_list_extra) \
 			   $(mod_list_db) $(mod_list_dbuid) \
@@ -237,7 +242,8 @@ mod_list_all=$(sort $(mod_list_basic) $(mod_list_extra) \
 			   $(mod_list_erlang) $(mod_list_systemd) \
 			   $(mod_list_http_async) $(mod_list_nsq) \
 			   $(mod_list_rabbitmq) $(mod_list_jsdt)) \
-			   $(mod_list_phonenum)
+			   $(mod_list_phonenum) \
+			   $(mod_list_rtp_media_server)
 
 
 
@@ -450,6 +456,9 @@ module_group_krabbitmq=$(mod_list_rabbitmq)
 
 # K phonenumber modules
 module_group_kphonenum=$(mod_list_phonenum)
+
+# K rtp_media_server modules
+module_group_krtp_media_server=$(mod_list_rtp_media_server)
 
 # list of static modules
 #

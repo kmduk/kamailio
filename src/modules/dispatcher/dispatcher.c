@@ -116,6 +116,7 @@ int ds_hash_initexpire = 7200;
 int ds_hash_check_interval = 30;
 int ds_timer_mode = 0;
 int ds_attrs_none = 0;
+int ds_load_mode = 0;
 
 str ds_outbound_proxy = STR_NULL;
 
@@ -153,6 +154,8 @@ static int w_ds_select_dst(struct sip_msg*, char*, char*);
 static int w_ds_select_dst_limit(struct sip_msg*, char*, char*, char*);
 static int w_ds_select_domain(struct sip_msg*, char*, char*);
 static int w_ds_select_domain_limit(struct sip_msg*, char*, char*, char*);
+static int w_ds_select_routes(sip_msg_t*, char*, char*);
+static int w_ds_select_routes_limit(sip_msg_t*, char*, char*, char*);
 static int w_ds_next_dst(struct sip_msg*, char*, char*);
 static int w_ds_next_domain(struct sip_msg*, char*, char*);
 static int w_ds_set_dst(struct sip_msg*, char*, char*);
@@ -189,6 +192,10 @@ static cmd_export_t cmds[]={
 		fixup_igp_igp, 0, REQUEST_ROUTE|FAILURE_ROUTE},
 	{"ds_select_domain", (cmd_function)w_ds_select_domain_limit, 3,
 		fixup_igp_all, 0, REQUEST_ROUTE|FAILURE_ROUTE},
+	{"ds_select_routes", (cmd_function)w_ds_select_routes, 2,
+		fixup_spve_spve, 0, REQUEST_ROUTE|FAILURE_ROUTE},
+	{"ds_select_routes", (cmd_function)w_ds_select_routes_limit, 3,
+		fixup_spve_spve_igp, 0, REQUEST_ROUTE|FAILURE_ROUTE},
 	{"ds_next_dst",      (cmd_function)w_ds_next_dst,      0,
 		ds_warn_fixup, 0, REQUEST_ROUTE|FAILURE_ROUTE},
 	{"ds_next_domain",   (cmd_function)w_ds_next_domain,   0,
@@ -263,24 +270,23 @@ static param_export_t params[]={
 	{"event_callback",     PARAM_STR, &ds_event_callback},
 	{"ds_attrs_none",      PARAM_INT, &ds_attrs_none},
 	{"ds_db_extra_attrs",  PARAM_STR, &ds_db_extra_attrs},
+	{"ds_load_mode",       PARAM_INT, &ds_load_mode},
 	{0,0,0}
 };
 
 
 /** module exports */
 struct module_exports exports= {
-	"dispatcher",
+	"dispatcher",    /* module name */
 	DEFAULT_DLFLAGS, /* dlopen flags */
-	cmds,
-	params,
-	0,          /* exported statistics */
-	0,          /* exported MI functions */
-	0,          /* exported pseudo-variables */
-	0,          /* extra processes */
-	mod_init,   /* module initialization function */
-	0,
-	(destroy_function) destroy,
-	child_init  /* per-child init function */
+	cmds,            /* cmd (cfg function) exports */
+	params,          /* param exports */
+	0,               /* exported rpc functions */
+	0,               /* exported pseudo-variables */
+	0,               /* response handling function */
+	mod_init,        /* module init function */
+	child_init,      /* per-child init function */
+	destroy          /* module destroy function */
 };
 /* clang-format on */
 
@@ -345,7 +351,7 @@ static int mod_init(void)
 				ds_default_socket.len, ds_default_socket.s);
 	}
 
-	if(init_data() != 0)
+	if(ds_init_data() != 0)
 		return -1;
 
 	if(ds_db_url.s) {
@@ -365,7 +371,7 @@ static int mod_init(void)
 				}
 			}
 		}
-		if(init_ds_db() != 0) {
+		if(ds_init_db() != 0) {
 			LM_ERR("could not initiate a connect to the database\n");
 			return -1;
 		}
@@ -617,6 +623,166 @@ static int w_ds_select_domain_limit(
 {
 	return w_ds_select_addr(msg, set, alg, limit /* limit number of dst*/,
 			DS_SETOP_RURI /*set host port*/);
+}
+
+/**
+ *
+ */
+static int ki_ds_select_routes_limit(sip_msg_t *msg, str *srules, str *smode,
+		int rlimit)
+{
+	int i;
+	int vret;
+	int gret;
+	sr_xval_t nxval;
+	ds_select_state_t vstate;
+
+	memset(&vstate, 0, sizeof(ds_select_state_t));
+	vstate.limit = (uint32_t)rlimit;
+	if(vstate.limit == 0) {
+		LM_DBG("Limit set to 0 - forcing to unlimited\n");
+		vstate.limit = 0xffffffff;
+	}
+	vret = -1;
+	gret = -1;
+	i = 0;
+	while(i<srules->len) {
+		vstate.setid = 0;
+		for(; i<srules->len; i++) {
+			if(srules->s[i]<'0' || srules->s[i]>'9') {
+				if(srules->s[i]=='=') {
+					i++;
+					break;
+				} else {
+					LM_ERR("invalid character in [%.*s] at [%d]\n",
+							srules->len, srules->s, i);
+					return -1;
+				}
+			}
+			vstate.setid = (vstate.setid * 10) + (srules->s[i] - '0');
+		}
+		vstate.alg = 0;
+		for(; i<srules->len; i++) {
+			if(srules->s[i]<'0' || srules->s[i]>'9') {
+				if(srules->s[i]==';') {
+					i++;
+					break;
+				} else {
+					LM_ERR("invalid character in [%.*s] at [%d]\n",
+							srules->len, srules->s, i);
+					return -1;
+				}
+			}
+			vstate.alg = (vstate.alg * 10) + (srules->s[i] - '0');
+		}
+		LM_DBG("routing with setid=%d alg=%d cnt=%d limit=0x%x (%u)\n",
+			vstate.setid, vstate.alg, vstate.cnt, vstate.limit, vstate.limit);
+
+		vstate.umode = DS_SETOP_XAVP;
+		/* if no r-uri/d-uri was set already, keep using the update mode
+		 * specified by the param, then just add to xavps list */
+		if(vstate.emode==0) {
+			switch(smode->s[0]) {
+				case '0':
+				case 'd':
+				case 'D':
+					vstate.umode = DS_SETOP_DSTURI;
+				break;
+				case '1':
+				case 'r':
+				case 'R':
+					vstate.umode = DS_SETOP_RURI;
+				break;
+				case '2':
+				case 'x':
+				case 'X':
+				break;
+				default:
+					LM_ERR("invalid routing mode parameter: %.*s\n",
+							smode->len, smode->s);
+					return -1;
+			}
+		}
+		vret = ds_manage_routes(msg, &vstate);
+		if(vret<0) {
+			LM_DBG("failed to select target destinations from %d=%d [%.*s]\n",
+					vstate.setid, vstate.alg, srules->len, srules->s);
+			/* continue to try other target groups */
+		} else {
+			if(vret>0) {
+				gret = vret;
+			}
+		}
+	}
+
+	if(gret<0) {
+		/* no selection of a target address */
+		LM_DBG("failed to select any target destinations from [%.*s]\n",
+					srules->len, srules->s);
+		/* return last failure code when trying to select target addresses */
+		return vret;
+	}
+
+	/* add cnt value to xavp */
+	if(((ds_xavp_ctx_mode & DS_XAVP_CTX_SKIP_CNT)==0)
+			&& (ds_xavp_ctx.len >= 0)) {
+		/* add to xavp the number of selected dst records */
+		memset(&nxval, 0, sizeof(sr_xval_t));
+		nxval.type = SR_XTYPE_INT;
+		nxval.v.i = vstate.cnt;
+		if(xavp_add_xavp_value(&ds_xavp_ctx, &ds_xavp_ctx_cnt, &nxval, NULL)==NULL) {
+			LM_ERR("failed to add cnt value to xavp\n");
+			return -1;
+		}
+	}
+
+	LM_DBG("selected target destinations: %d\n", vstate.cnt);
+	return gret;
+}
+
+/**
+ *
+ */
+static int ki_ds_select_routes(sip_msg_t *msg, str *srules, str *smode)
+{
+	return ki_ds_select_routes_limit(msg, srules, smode, 0);
+}
+
+/**
+ *
+ */
+static int w_ds_select_routes(sip_msg_t *msg, char *lrules, char *umode)
+{
+	return w_ds_select_routes_limit(msg, lrules, umode, 0);
+}
+
+/**
+ *
+ */
+static int w_ds_select_routes_limit(sip_msg_t *msg, char *lrules, char *umode,
+		char *rlimit)
+{
+	str vrules;
+	str vmode;
+	int vlimit;
+
+	if(fixup_get_svalue(msg, (gparam_t*)lrules, &vrules)<0) {
+		LM_ERR("failed to get routing rules parameter\n");
+		return -1;
+	}
+	if(fixup_get_svalue(msg, (gparam_t*)umode, &vmode)<0) {
+		LM_ERR("failed to get update mode parameter\n");
+		return -1;
+	}
+	if(rlimit!=NULL) {
+		if(fixup_get_ivalue(msg, (gparam_t*)rlimit, &vlimit)<0) {
+			LM_ERR("failed to get limit parameter\n");
+			return -1;
+		}
+	} else {
+		vlimit = 0;
+	}
+	return ki_ds_select_routes_limit(msg, &vrules, &vmode, vlimit);
 }
 
 /**
@@ -1112,6 +1278,16 @@ static sr_kemi_t sr_kemi_dispatcher_exports[] = {
 		{ SR_KEMIP_INT, SR_KEMIP_INT, SR_KEMIP_INT,
 			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
 	},
+	{ str_init("dispatcher"), str_init("ds_select_routes"),
+		SR_KEMIP_INT, ki_ds_select_routes,
+		{ SR_KEMIP_STR, SR_KEMIP_STR, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init("dispatcher"), str_init("ds_select_routes_limit"),
+		SR_KEMIP_INT, ki_ds_select_routes_limit,
+		{ SR_KEMIP_STR, SR_KEMIP_STR, SR_KEMIP_INT,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
 	{ str_init("dispatcher"), str_init("ds_next_dst"),
 		SR_KEMIP_INT, ki_ds_next_dst,
 		{ SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE,
@@ -1465,6 +1641,58 @@ static void dispatcher_rpc_ping_active(rpc_t *rpc, void *ctx)
 	return;
 }
 
+static const char *dispatcher_rpc_add_doc[2] = {
+		"Add a destination address in memory", 0};
+
+
+/*
+ * RPC command to add a destination address to memory
+ */
+static void dispatcher_rpc_add(rpc_t *rpc, void *ctx)
+{
+	int group, flags;
+	str dest;
+
+	flags = 0;
+
+	if(rpc->scan(ctx, "dS*d", &group, &dest, &flags) < 2) {
+		rpc->fault(ctx, 500, "Invalid Parameters");
+		return;
+	}
+
+	if(ds_add_dst(group, &dest, flags) != 0) {
+		rpc->fault(ctx, 500, "Adding dispatcher dst failed");
+		return;
+	}
+
+	return;
+}
+
+static const char *dispatcher_rpc_remove_doc[2] = {
+		"Remove a destination address from memory", 0};
+
+
+/*
+ * RPC command to remove a destination address from memory
+ */
+static void dispatcher_rpc_remove(rpc_t *rpc, void *ctx)
+{
+	int group;
+	str dest;
+
+	if(rpc->scan(ctx, "dS", &group, &dest) < 2) {
+		rpc->fault(ctx, 500, "Invalid Parameters");
+		return;
+	}
+
+	if(ds_remove_dst(group, &dest) != 0) {
+		rpc->fault(ctx, 500, "Removing dispatcher dst failed");
+		return;
+	}
+
+	return;
+}
+
 /* clang-format off */
 rpc_export_t dispatcher_rpc_cmds[] = {
 	{"dispatcher.reload", dispatcher_rpc_reload,
@@ -1475,6 +1703,10 @@ rpc_export_t dispatcher_rpc_cmds[] = {
 		dispatcher_rpc_set_state_doc,   0},
 	{"dispatcher.ping_active",   dispatcher_rpc_ping_active,
 		dispatcher_rpc_ping_active_doc, 0},
+	{"dispatcher.add",   dispatcher_rpc_add,
+		dispatcher_rpc_add_doc, 0},
+	{"dispatcher.remove",   dispatcher_rpc_remove,
+		dispatcher_rpc_remove_doc, 0},
 	{0, 0, 0, 0}
 };
 /* clang-format on */

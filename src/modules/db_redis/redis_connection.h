@@ -23,7 +23,11 @@
 #ifndef _REDIS_CONNECTION_H_
 #define _REDIS_CONNECTION_H_
 
+#ifdef WITH_HIREDIS_PATH
 #include <hiredis/hiredis.h>
+#else
+#include <hiredis.h>
+#endif
 
 #include "db_redis_mod.h"
 
@@ -35,6 +39,8 @@
     if (!(reply)) { \
         LM_ERR("Failed to fetch type entry: %s\n", \
                 (con)->con->errstr); \
+        redisFree((con)->con); \
+        (con)->con = NULL; \
         goto err; \
     } \
     if ((reply)->type == REDIS_REPLY_ERROR) { \

@@ -31,9 +31,7 @@
 #include "../../core/hashes.h"
 #include "../../core/ut.h"
 #include "../../lib/srdb1/db_ut.h"
-#ifdef WITH_XAVP
 #include "../../core/xavp.h"
-#endif
 
 #include "sql_api.h"
 
@@ -139,10 +137,11 @@ int pv_get_sqlrows(struct sip_msg *msg,  pv_param_t *param,
 	return pv_get_sintval(msg, param, res, con->dbf.affected_rows(con->dbh));
 }
 
-int sql_connect(void)
+int sql_connect(int mode)
 {
 	sql_con_t *sc;
 	sc = _sql_con_root;
+	LM_DBG("trying to connect to database with mode %d\n", mode);
 	while(sc)
 	{
 		if (db_bind_mod(&sc->db_url, &sc->dbf))
@@ -160,11 +159,35 @@ int sql_connect(void)
 		sc->dbh = sc->dbf.init(&sc->db_url);
 		if (sc->dbh==NULL)
 		{
-			LM_ERR("failed to connect to the database [%.*s]\n",
-					sc->name.len, sc->name.s);
-			return -1;
+			if(!mode) {
+				LM_ERR("failed to connect to the database [%.*s]\n",
+						sc->name.len, sc->name.s);
+				return -1;
+			} else {
+				LM_INFO("failed to connect to the database [%.*s] - trying next\n",
+						sc->name.len, sc->name.s);
+			}
 		}
 		sc = sc->next;
+	}
+	return 0;
+}
+
+int sql_reconnect(sql_con_t *sc)
+{
+	if(sc==NULL) {
+		LM_ERR("connection structure not initialized\n");
+		return -1;
+	}
+	if (sc->dbh!=NULL) {
+		/* already connected */
+		return 0;
+	}
+	sc->dbh = sc->dbf.init(&sc->db_url);
+	if (sc->dbh==NULL) {
+		LM_ERR("failed to connect to the database [%.*s]\n",
+					sc->name.len, sc->name.s);
+		return -1;
 	}
 	return 0;
 }
@@ -436,7 +459,6 @@ int sql_do_query_async(sql_con_t *con, str *query)
 	return 1;
 }
 
-#ifdef WITH_XAVP
 int sql_exec_xquery(struct sip_msg *msg, sql_con_t *con, str *query,
 		str *xavp)
 {
@@ -535,6 +557,7 @@ int sql_exec_xquery(struct sip_msg *msg, sql_con_t *con, str *query,
 	return 1;
 }
 
+
 int sql_do_xquery(struct sip_msg *msg, sql_con_t *con, pv_elem_t *query,
 		pv_elem_t *res)
 {
@@ -557,8 +580,6 @@ int sql_do_xquery(struct sip_msg *msg, sql_con_t *con, pv_elem_t *query,
 	}
 	return sql_exec_xquery(msg, con, &sv, &xavp);
 }
-
-#endif
 
 
 int sql_do_pvquery(struct sip_msg *msg, sql_con_t *con, pv_elem_t *query,

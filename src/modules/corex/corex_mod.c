@@ -58,6 +58,7 @@ static int w_set_recv_socket(sip_msg_t *msg, char *psock, char *p2);
 static int w_set_source_address(sip_msg_t *msg, char *paddr, char *p2);
 static int w_via_add_srvid(sip_msg_t *msg, char *pflags, char *p2);
 static int w_via_add_xavp_params(sip_msg_t *msg, char *pflags, char *p2);
+static int w_via_use_xavp_fields(sip_msg_t *msg, char *pflags, char *p2);
 
 static int fixup_file_op(void** param, int param_no);
 
@@ -121,6 +122,8 @@ static cmd_export_t cmds[]={
 		0, ANY_ROUTE },
 	{"via_add_xavp_params", (cmd_function)w_via_add_xavp_params, 1, fixup_igp_null,
 		0, ANY_ROUTE },
+	{"via_use_xavp_fields", (cmd_function)w_via_use_xavp_fields, 1, fixup_igp_null,
+		0, ANY_ROUTE },
 
 	{0, 0, 0, 0, 0, 0}
 };
@@ -136,18 +139,16 @@ static param_export_t params[]={
 };
 
 struct module_exports exports = {
-	"corex",
+	"corex",          /* module name */
 	DEFAULT_DLFLAGS, /* dlopen flags */
-	cmds,
-	params,
-	0,
-	0,              /* exported MI functions */
-	mod_pvs,        /* exported pseudo-variables */
-	0,              /* extra processes */
-	mod_init,       /* module initialization function */
-	0,              /* response function */
-	mod_destroy,    /* destroy function */
-	child_init      /* per child init function */
+	cmds,            /* cmd (cfg function) exports */
+	params,          /* param exports */
+	0,               /* RPC method exports */
+	mod_pvs,         /* pseudo-variables exports */
+	0,               /* response handling function */
+	mod_init,        /* module init function */
+	child_init,      /* per-child init function */
+	mod_destroy      /* module destroy function */
 };
 
 
@@ -777,9 +778,9 @@ static int ki_via_add_xavp_params(sip_msg_t *msg, int fval)
 	if(msg==NULL)
 		return -1;
 	if(fval) {
-		msg->msg_flags |= FL_ADD_XAVP_VIA;
+		msg->msg_flags |= FL_ADD_XAVP_VIA_PARAMS;
 	} else {
-		msg->msg_flags &= ~(FL_ADD_XAVP_VIA);
+		msg->msg_flags &= ~(FL_ADD_XAVP_VIA_PARAMS);
 	}
 	return 1;
 }
@@ -796,6 +797,35 @@ static int w_via_add_xavp_params(sip_msg_t *msg, char *pflags, char *s2)
 	}
 	return ki_via_add_xavp_params(msg, fval);
 }
+
+/**
+ *
+ */
+static int ki_via_use_xavp_fields(sip_msg_t *msg, int fval)
+{
+	if(msg==NULL)
+		return -1;
+	if(fval) {
+		msg->msg_flags |= FL_USE_XAVP_VIA_FIELDS;
+	} else {
+		msg->msg_flags &= ~(FL_USE_XAVP_VIA_FIELDS);
+	}
+	return 1;
+}
+
+/**
+ *
+ */
+static int w_via_use_xavp_fields(sip_msg_t *msg, char *pflags, char *s2)
+{
+	int fval=0;
+	if(fixup_get_ivalue(msg, (gparam_t*)pflags, &fval)!=0) {
+		LM_ERR("no flag value\n");
+		return -1;
+	}
+	return ki_via_use_xavp_fields(msg, fval);
+}
+
 
 /**
  *
@@ -899,6 +929,11 @@ static sr_kemi_t sr_kemi_corex_exports[] = {
 	},
 	{ str_init("corex"), str_init("via_add_xavp_params"),
 		SR_KEMIP_INT, ki_via_add_xavp_params,
+		{ SR_KEMIP_INT, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init("corex"), str_init("via_use_xavp_fields"),
+		SR_KEMIP_INT, ki_via_use_xavp_fields,
 		{ SR_KEMIP_INT, SR_KEMIP_NONE, SR_KEMIP_NONE,
 			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
 	},

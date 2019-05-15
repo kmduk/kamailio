@@ -731,6 +731,13 @@ modparam("registrar", "reg_callid_avp", "$avp(s:avp)")
 ...
 modparam("registrar", "xavp_cfg", "reg")
 ...
+request_route {
+    ...
+    $xavp(reg=&gt;max_contacts) = 4;
+    save("location");
+    ...
+}
+...
 		</programlisting>
 		</example>
 	</section>
@@ -961,6 +968,75 @@ modparam("registrar", "contact_max_size", 1024)
 		</example>
 	</section>
 
+	<section id="registrar.p.event_callback">
+		<title><varname>event_callback</varname> (str)</title>
+		<para>
+			The name of the function in the KEMI configuration file (embedded
+			scripting language such as Lua, Python, ...) to be executed instead
+			of event_route[...] blocks.
+		</para>
+		<para>
+			The function receives a string parameter with the name of the event.
+            The only possible value currently is 'usrloc:contact-expired'.
+		</para>
+		<para>
+		<emphasis>
+			Default value is 'empty' (no function is executed for events).
+		</emphasis>
+		</para>
+		<example>
+		<title>Set <varname>event_callback</varname> parameter</title>
+		<programlisting format="linespecific">
+...
+modparam("registrar", "event_callback", "ksr_registrar_event")
+...
+-- event callback function implemented in Lua
+function ksr_registrar_event(evname)
+    KSR.info( "Expired contact for " .. KSR.pv.getw("$ulc(exp=>aor)") .. "\n");
+	return 1;
+end
+...
+        </programlisting>
+		</example>
+	</section>
+	<section id="registrar.p.lookup_filter_mode">
+		<title><varname>lookup_filter_mode</varname> (int)</title>
+		<para>
+			Control what filters should be applied to lookup(...) operations.
+			It can be a combination (sum) of the next values:
+		</para>
+		<itemizedlist>
+		<listitem>
+			<para>
+				<emphasis>1</emphasis> - apply the branch flags filter - return
+				only contact records with branch flags matching at least one set
+				inside xavp specified by xavp_cfg parameter with inner name
+				rlf_bflags - e.g., $xavp(reg=&gt;rlf_bflags).
+			</para>
+		</listitem>
+	</itemizedlist>
+		<para>
+		<emphasis>
+			Default value is NULL (disabled).
+		</emphasis>
+		</para>
+		<example>
+		<title>Set <varname>xavp_cfg</varname> parameter</title>
+		<programlisting format="linespecific">
+...
+modparam("registrar", "xavp_cfg", "reg")
+modparam("registrar", "lookup_filter_mode", 1)
+...
+request_route {
+    ...
+    $xavp(reg=&gt;rlf_bflags) = 8;
+    if(lookup("location")) { ... }
+    ...
+}
+...
+		</programlisting>
+		</example>
+	</section>
 	</section>
 
 	

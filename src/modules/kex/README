@@ -84,7 +84,9 @@ Ovidiu Sas
               4.27. system.listMethods
               4.28. system.methodHelp
               4.29. system.methodSignature
-              4.30. mod.stats module_name/all pkg/shm/all
+              4.30. mod.mem_stats
+              4.31. mod.stats
+              4.32. mod.mem_statsx
 
    List of Examples
 
@@ -160,7 +162,9 @@ Chapter 1. Admin Guide
         4.27. system.listMethods
         4.28. system.methodHelp
         4.29. system.methodSignature
-        4.30. mod.stats module_name/all pkg/shm/all
+        4.30. mod.mem_stats
+        4.31. mod.stats
+        4.32. mod.mem_statsx
 
 1. Overview
 
@@ -376,7 +380,9 @@ pv_printf("$avp(x)", "From: $fU - To: $tU");
 3.11. is_myself(uri)
 
    Check if the parameter matches the 'myself' condition (i.e., is a local
-   IP or domain).
+   IP or domain). Note that if the port is missing in the URI, then no
+   port matching is done (in other words, port matching is skipped -- it
+   does not use default SIP ports 5060 or 5061 for matching).
 
    Meaning of the parameters is as follows:
      * uri - Valid SIP URI or IP address to check against the list of
@@ -458,7 +464,9 @@ resetdebug();
    4.27. system.listMethods
    4.28. system.methodHelp
    4.29. system.methodSignature
-   4.30. mod.stats module_name/all pkg/shm/all
+   4.30. mod.mem_stats
+   4.31. mod.stats
+   4.32. mod.mem_statsx
 
 4.1.  core.aliases_list
 
@@ -633,6 +641,11 @@ kamcmd core.modules
 
    Print the list of available internal statistics.
 
+   NOTE: the result is an array of strings that have the list of
+   statistics formated like "name = value", being propagated over the time
+   from the MI variant. Use "stats.fetch" command to have a more
+   JSON-friendly output.
+
    Parameters: statsid - which statistics to be printed. If set to 'all'
    then all statistics are printed; if set to 'statsgroup:' then all
    statistics in the group are printed; if set to 'statsname' then the
@@ -709,7 +722,7 @@ kamcmd system.listMethods
 
    Returns signature of given method.
 
-4.30.  mod.stats module_name/all pkg/shm/all
+4.30.  mod.mem_stats
 
    Print private(pkg) or shared(shm) memory currently allocated a given
    module or by all modules.
@@ -753,3 +766,15 @@ loc
     pkg_proc_stats_init(79): 864
     Total: 864
 }
+
+4.31.  mod.stats
+
+   Same as RPC command "mod.mem_stats", this is an alias command to
+   preserve backward compatibility.
+
+4.32.  mod.mem_statsx
+
+   Similar to RPC command "mod.mem_stats", but the output has an extended
+   format, printing info that includes the allocated size and the count of
+   allocated chunks in a combined string value. The parameters are the
+   same like for "mod.mem_stats".

@@ -95,15 +95,20 @@ int ruby_sr_init_mod(void)
 	return 0;
 }
 
-static void app_ruby_print_last_exception()
+static int app_ruby_print_last_exception()
 {
 	VALUE rException, rExceptStr;
 
 	rException = rb_errinfo();         /* get last exception */
 	rb_set_errinfo(Qnil);              /* clear last exception */
 	rExceptStr = rb_funcall(rException, rb_intern("to_s"), 0, Qnil);
-	LM_ERR("exception: %s\n", StringValuePtr(rExceptStr));
-	return;
+	if(RSTRING_LEN(rExceptStr)!=4
+			|| strncmp(RSTRING_PTR(rExceptStr), "exit", 4)!=0) {
+		LM_ERR("exception: %.*s\n", (int)RSTRING_LEN(rExceptStr),
+				RSTRING_PTR(rExceptStr));
+		return 0;
+	}
+	return 1;
 }
 
 /**
@@ -164,12 +169,12 @@ int app_ruby_kemi_reload_script(void)
 }
 
 /**
- * 
+ *
  */
 int ruby_sr_init_child(void)
 {
 	int state = 0;
-	VALUE result;
+	VALUE rbres;
 
 	/* construct the VM */
 	ruby_init();
@@ -177,12 +182,12 @@ int ruby_sr_init_child(void)
 	ruby_script(_sr_ruby_load_file.s);
 
 	/* Ruby goes here */
-	result = rb_eval_string_protect("puts 'Hello " NAME "!'", &state);
+	rbres = rb_eval_string_protect("puts 'Hello " NAME "!'", &state);
 
 	if (state) {
 		/* handle exception */
 		app_ruby_print_last_exception();
-		LM_ERR("test execution with error\n");
+		LM_ERR("test execution with error (res type: %d)\n", TYPE(rbres));
 		return -1;
 	} else {
 		LM_DBG("test execution without error\n");
@@ -245,10 +250,12 @@ int sr_kemi_ruby_return_int(sr_kemi_t *ket, int rc)
  */
 static VALUE sr_kemi_ruby_return_none(int rmode)
 {
-	if(rmode==0) {
-		return Qnil;
+	if(rmode==1) {
+		return rb_str_new_cstr("<<null>>");
+	} else if(rmode==2) {
+		return rb_str_new_cstr("");
 	}
-	return rb_str_new_cstr("<<null>>");
+	return Qnil;
 }
 
 /**
@@ -323,6 +330,14 @@ static VALUE app_ruby_pv_getw(int argc, VALUE* argv, VALUE self)
 /**
  *
  */
+static VALUE app_ruby_pv_gete(int argc, VALUE* argv, VALUE self)
+{
+	return app_ruby_pv_get_mode(argc, argv, self, 2);
+}
+
+/**
+ *
+ */
 static VALUE app_ruby_pv_seti(int argc, VALUE* argv, VALUE self)
 {
 	str pvn;
@@ -343,7 +358,7 @@ static VALUE app_ruby_pv_seti(int argc, VALUE* argv, VALUE self)
 		return Qfalse;
 	}
 
-	if(!RB_TYPE_P(argv[2], T_FIXNUM)) {
+	if(!RB_TYPE_P(argv[1], T_FIXNUM)) {
 		LM_ERR("invalid pv val parameter type\n");
 		return Qfalse;
 	}
@@ -400,7 +415,7 @@ static VALUE app_ruby_pv_sets(int argc, VALUE* argv, VALUE self)
 		return Qfalse;
 	}
 
-	if(!RB_TYPE_P(argv[2], T_FIXNUM)) {
+	if(!RB_TYPE_P(argv[1], T_STRING)) {
 		LM_ERR("invalid pv val parameter type\n");
 		return Qfalse;
 	}
@@ -549,6 +564,7 @@ static VALUE app_ruby_pv_is_null(int argc, VALUE* argv, VALUE self)
 static ksr_ruby_export_t _sr_kemi_pv_R_Map[] = {
 	{"PV", "get", app_ruby_pv_get},
 	{"PV", "getw", app_ruby_pv_getw},
+	{"PV", "gete", app_ruby_pv_gete},
 	{"PV", "seti", app_ruby_pv_seti},
 	{"PV", "sets", app_ruby_pv_sets},
 	{"PV", "unset", app_ruby_pv_unset},
@@ -567,9 +583,8 @@ static VALUE app_ruby_sr_modf(int argc, VALUE* argv, VALUE self)
 	int i;
 	int mod_type;
 	struct run_act_ctx ra_ctx;
-	unsigned modver;
 	struct action *act;
-	sr31_cmd_export_t* expf;
+	ksr_cmd_export_t* expf;
 	sr_ruby_env_t *env_R;
 
 	ret = 1;
@@ -590,11 +605,11 @@ static VALUE app_ruby_sr_modf(int argc, VALUE* argv, VALUE self)
 	}
 	/* first is function name, then parameters */
 	for(i=0; i<argc; i++) {
-		if(!RB_TYPE_P(argv[0], T_STRING)) {
+		if(!RB_TYPE_P(argv[i], T_STRING)) {
 			LM_ERR("invalid parameter type (%d)\n", i);
 			return INT2NUM(-1);
 		}
-		rbv[i] = (char*)StringValuePtr(argv[0]);
+		rbv[i] = (char*)StringValuePtr(argv[i]);
 	}
 	LM_ERR("request to execute cfg function '%s'\n", rbv[0]);
 	/* pkg copy only parameters */
@@ -609,7 +624,7 @@ static VALUE app_ruby_sr_modf(int argc, VALUE* argv, VALUE self)
 		}
 	}
 
-	expf = find_export_record(rbv[0], argc-1, 0, &modver);
+	expf = find_export_record(rbv[0], argc-1, 0);
 	if (expf==NULL) {
 		LM_ERR("function '%s' is not available\n", rbv[0]);
 		goto error;
@@ -730,23 +745,19 @@ static VALUE ksr_ruby_exec_callback(VALUE ptr)
 }
 
 /**
- * 
+ *
  */
-VALUE sr_kemi_ruby_exec_func(ksr_ruby_context_t *R, int eidx, int argc,
+VALUE sr_kemi_ruby_exec_func_ex(ksr_ruby_context_t *R, sr_kemi_t *ket, int argc,
 		VALUE* argv, VALUE self)
 {
 	sr_kemi_val_t vps[SR_KEMI_PARAMS_MAX];
 	sr_ruby_env_t *env_R;
-	sr_kemi_t *ket;
 	str *fname;
 	str *mname;
 	int i;
 	int ret = -1;
 
 	env_R = app_ruby_sr_env_get();
-	ket = sr_kemi_ruby_export_get(eidx);
-
-	LM_DBG("executing %p eidx %d\n", ket, eidx);
 	if(env_R==NULL || env_R->msg==NULL || ket==NULL) {
 		LM_ERR("invalid ruby environment attributes or parameters\n");
 		return Qfalse;
@@ -842,6 +853,177 @@ VALUE sr_kemi_ruby_exec_func(ksr_ruby_context_t *R, int eidx, int argc,
 				return Qfalse;
 			}
 		break;
+		case 3:
+			if(ket->ptypes[0]==SR_KEMIP_INT) {
+				if(ket->ptypes[1]==SR_KEMIP_INT) {
+					if(ket->ptypes[2]==SR_KEMIP_INT) {
+						ret = ((sr_kemi_fmnnn_f)(ket->func))(env_R->msg,
+								vps[0].n, vps[1].n, vps[2].n);
+						return sr_kemi_ruby_return_int(ket, ret);
+					} else if(ket->ptypes[2]==SR_KEMIP_STR) {
+						ret = ((sr_kemi_fmnns_f)(ket->func))(env_R->msg,
+								vps[0].n, vps[1].n, &vps[2].s);
+						return sr_kemi_ruby_return_int(ket, ret);
+					} else {
+						LM_ERR("invalid parameters for: %.*s\n",
+								fname->len, fname->s);
+						return Qfalse;
+					}
+				} else if(ket->ptypes[1]==SR_KEMIP_STR) {
+					if(ket->ptypes[2]==SR_KEMIP_INT) {
+						ret = ((sr_kemi_fmnsn_f)(ket->func))(env_R->msg,
+								vps[0].n, &vps[1].s, vps[2].n);
+						return sr_kemi_ruby_return_int(ket, ret);
+					} else if(ket->ptypes[2]==SR_KEMIP_STR) {
+						ret = ((sr_kemi_fmnss_f)(ket->func))(env_R->msg,
+								vps[0].n, &vps[1].s, &vps[2].s);
+						return sr_kemi_ruby_return_int(ket, ret);
+					} else {
+						LM_ERR("invalid parameters for: %.*s\n",
+								fname->len, fname->s);
+						return Qfalse;
+					}
+				} else {
+					LM_ERR("invalid parameters for: %.*s\n",
+							fname->len, fname->s);
+					return Qfalse;
+				}
+			} else if(ket->ptypes[0]==SR_KEMIP_STR) {
+				if(ket->ptypes[1]==SR_KEMIP_INT) {
+					if(ket->ptypes[2]==SR_KEMIP_INT) {
+						ret = ((sr_kemi_fmsnn_f)(ket->func))(env_R->msg,
+								&vps[0].s, vps[1].n, vps[2].n);
+						return sr_kemi_ruby_return_int(ket, ret);
+					} else if(ket->ptypes[2]==SR_KEMIP_STR) {
+						ret = ((sr_kemi_fmsns_f)(ket->func))(env_R->msg,
+								&vps[0].s, vps[1].n, &vps[2].s);
+						return sr_kemi_ruby_return_int(ket, ret);
+					} else {
+						LM_ERR("invalid parameters for: %.*s\n",
+								fname->len, fname->s);
+						return Qfalse;
+					}
+				} else if(ket->ptypes[1]==SR_KEMIP_STR) {
+					if(ket->ptypes[2]==SR_KEMIP_INT) {
+						ret = ((sr_kemi_fmssn_f)(ket->func))(env_R->msg,
+								&vps[0].s, &vps[1].s, vps[2].n);
+						return sr_kemi_ruby_return_int(ket, ret);
+					} else if(ket->ptypes[2]==SR_KEMIP_STR) {
+						ret = ((sr_kemi_fmsss_f)(ket->func))(env_R->msg,
+								&vps[0].s, &vps[1].s, &vps[2].s);
+						return sr_kemi_ruby_return_int(ket, ret);
+					} else {
+						LM_ERR("invalid parameters for: %.*s\n",
+								fname->len, fname->s);
+						return Qfalse;
+					}
+				} else {
+					LM_ERR("invalid parameters for: %.*s\n",
+							fname->len, fname->s);
+					return Qfalse;
+				}
+			} else {
+				LM_ERR("invalid parameters for: %.*s\n",
+						fname->len, fname->s);
+				return Qfalse;
+			}
+		break;
+		case 4:
+			if(ket->ptypes[0]==SR_KEMIP_STR
+					&& ket->ptypes[1]==SR_KEMIP_STR
+					&& ket->ptypes[2]==SR_KEMIP_STR
+					&& ket->ptypes[3]==SR_KEMIP_STR) {
+				ret = ((sr_kemi_fmssss_f)(ket->func))(env_R->msg,
+						&vps[0].s, &vps[1].s, &vps[2].s, &vps[3].s);
+				return sr_kemi_ruby_return_int(ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_STR
+					&& ket->ptypes[1]==SR_KEMIP_STR
+					&& ket->ptypes[2]==SR_KEMIP_STR
+					&& ket->ptypes[3]==SR_KEMIP_INT) {
+				ret = ((sr_kemi_fmsssn_f)(ket->func))(env_R->msg,
+						&vps[0].s, &vps[1].s, &vps[2].s, vps[3].n);
+				return sr_kemi_ruby_return_int(ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_STR
+					&& ket->ptypes[1]==SR_KEMIP_STR
+					&& ket->ptypes[2]==SR_KEMIP_INT
+					&& ket->ptypes[3]==SR_KEMIP_INT) {
+				ret = ((sr_kemi_fmssnn_f)(ket->func))(env_R->msg,
+						&vps[0].s, &vps[1].s, vps[2].n, vps[3].n);
+				return sr_kemi_ruby_return_int(ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_STR
+					&& ket->ptypes[1]==SR_KEMIP_INT
+					&& ket->ptypes[2]==SR_KEMIP_INT
+					&& ket->ptypes[3]==SR_KEMIP_INT) {
+				ret = ((sr_kemi_fmsnnn_f)(ket->func))(env_R->msg,
+						&vps[0].s, vps[1].n, vps[2].n, vps[3].n);
+				return sr_kemi_ruby_return_int(ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_INT
+					&& ket->ptypes[1]==SR_KEMIP_STR
+					&& ket->ptypes[2]==SR_KEMIP_STR
+					&& ket->ptypes[3]==SR_KEMIP_STR) {
+				ret = ((sr_kemi_fmnsss_f)(ket->func))(env_R->msg,
+						vps[0].n, &vps[1].s, &vps[2].s, &vps[3].s);
+				return sr_kemi_ruby_return_int(ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_INT
+					&& ket->ptypes[1]==SR_KEMIP_INT
+					&& ket->ptypes[2]==SR_KEMIP_STR
+					&& ket->ptypes[3]==SR_KEMIP_STR) {
+				ret = ((sr_kemi_fmnnss_f)(ket->func))(env_R->msg,
+						vps[0].n, vps[1].n, &vps[2].s, &vps[3].s);
+				return sr_kemi_ruby_return_int(ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_INT
+					&& ket->ptypes[1]==SR_KEMIP_INT
+					&& ket->ptypes[2]==SR_KEMIP_INT
+					&& ket->ptypes[3]==SR_KEMIP_STR) {
+				ret = ((sr_kemi_fmnnns_f)(ket->func))(env_R->msg,
+						vps[0].n, vps[1].n, vps[2].n, &vps[3].s);
+				return sr_kemi_ruby_return_int(ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_INT
+					&& ket->ptypes[1]==SR_KEMIP_INT
+					&& ket->ptypes[2]==SR_KEMIP_INT
+					&& ket->ptypes[3]==SR_KEMIP_INT) {
+				ret = ((sr_kemi_fmnnnn_f)(ket->func))(env_R->msg,
+						vps[0].n, vps[1].n, vps[2].n, vps[3].n);
+				return sr_kemi_ruby_return_int(ket, ret);
+			} else {
+				LM_ERR("invalid parameters for: %.*s\n",
+						fname->len, fname->s);
+				return Qfalse;
+			}
+		break;
+		case 5:
+			if(ket->ptypes[0]==SR_KEMIP_STR
+					&& ket->ptypes[1]==SR_KEMIP_STR
+					&& ket->ptypes[2]==SR_KEMIP_STR
+					&& ket->ptypes[3]==SR_KEMIP_STR
+					&& ket->ptypes[4]==SR_KEMIP_STR) {
+				ret = ((sr_kemi_fmsssss_f)(ket->func))(env_R->msg,
+						&vps[0].s, &vps[1].s, &vps[2].s, &vps[3].s,
+						&vps[4].s);
+				return sr_kemi_ruby_return_int(ket, ret);
+			} else {
+				LM_ERR("invalid parameters for: %.*s\n",
+						fname->len, fname->s);
+				return Qfalse;
+			}
+		break;
+		case 6:
+			if(ket->ptypes[0]==SR_KEMIP_STR
+					&& ket->ptypes[1]==SR_KEMIP_STR
+					&& ket->ptypes[2]==SR_KEMIP_STR
+					&& ket->ptypes[3]==SR_KEMIP_STR
+					&& ket->ptypes[4]==SR_KEMIP_STR
+					&& ket->ptypes[5]==SR_KEMIP_STR) {
+				ret = ((sr_kemi_fmssssss_f)(ket->func))(env_R->msg,
+						&vps[0].s, &vps[1].s, &vps[2].s, &vps[3].s,
+						&vps[4].s, &vps[5].s);
+				return sr_kemi_ruby_return_int(ket, ret);
+			} else {
+				LM_ERR("invalid parameters for: %.*s\n",
+						fname->len, fname->s);
+				return Qfalse;
+			}
+		break;
 		default:
 			LM_ERR("invalid parameters for: %.*s\n",
 					fname->len, fname->s);
@@ -850,7 +1032,48 @@ VALUE sr_kemi_ruby_exec_func(ksr_ruby_context_t *R, int eidx, int argc,
 }
 
 /**
- * 
+ *
+ */
+VALUE sr_kemi_ruby_exec_func(ksr_ruby_context_t *R, int eidx, int argc,
+		VALUE* argv, VALUE self)
+{
+	sr_kemi_t *ket;
+	int ret;
+	struct timeval tvb, tve;
+	struct timezone tz;
+	unsigned int tdiff;
+
+	ket = sr_kemi_ruby_export_get(eidx);
+
+	LM_DBG("executing %p eidx %d\n", ket, eidx);
+
+	if(unlikely(cfg_get(core, core_cfg, latency_limit_action)>0)
+			&& is_printable(cfg_get(core, core_cfg, latency_log))) {
+		gettimeofday(&tvb, &tz);
+	}
+
+	ret = sr_kemi_ruby_exec_func_ex(R, ket, argc, argv, self);
+
+	if(unlikely(cfg_get(core, core_cfg, latency_limit_action)>0)
+			&& is_printable(cfg_get(core, core_cfg, latency_log))) {
+		gettimeofday(&tve, &tz);
+		tdiff = (tve.tv_sec - tvb.tv_sec) * 1000000
+				   + (tve.tv_usec - tvb.tv_usec);
+		if(tdiff >= cfg_get(core, core_cfg, latency_limit_action)) {
+			LOG(cfg_get(core, core_cfg, latency_log),
+						"alert - action KSR.%s%s%s(...)"
+						" took too long [%u us]\n",
+						(ket->mname.len>0)?ket->mname.s:"",
+						(ket->mname.len>0)?".":"", ket->fname.s,
+						tdiff);
+		}
+	}
+
+	return ret;
+}
+
+/**
+ *
  */
 int app_ruby_run_ex(sip_msg_t *msg, char *func, char *p1, char *p2,
 		char *p3, int emode)
@@ -892,16 +1115,18 @@ int app_ruby_run_ex(sip_msg_t *msg, char *func, char *p1, char *p2,
 	_sr_R_env.msg = bmsg;
 
 	if (rberr) {
-		app_ruby_print_last_exception();
-		LM_ERR("ruby exception (%d) on callback for: %s\n", rberr, func);
-		return -1;
+		if(app_ruby_print_last_exception()==0) {
+			LM_ERR("ruby exception (%d) on callback for: %s (res type: %d)\n",
+					rberr, func, TYPE(rbres));
+			return -1;
+		}
 	}
 
 	return 1;
 }
 
 /**
- * 
+ *
  */
 int app_ruby_run(sip_msg_t *msg, char *func, char *p1, char *p2,
 		char *p3)
@@ -1063,10 +1288,113 @@ int app_ruby_kemi_export_libs(void)
 	return 1;
 }
 
+static const char* app_ruby_rpc_reload_doc[2] = {
+	"Reload javascript file",
+	0
+};
+
+
+static void app_ruby_rpc_reload(rpc_t* rpc, void* ctx)
+{
+	int v;
+	void *vh;
+
+	if(_sr_ruby_load_file.s == NULL && _sr_ruby_load_file.len<=0) {
+		LM_WARN("script file path not provided\n");
+		rpc->fault(ctx, 500, "No script file");
+		return;
+	}
+	if(_sr_ruby_reload_version == NULL) {
+		LM_WARN("reload not enabled\n");
+		rpc->fault(ctx, 500, "Reload not enabled");
+		return;
+	}
+
+	v = *_sr_ruby_reload_version;
+	*_sr_ruby_reload_version += 1;
+	LM_INFO("marking for reload ruby script file: %.*s (%d / %d => %d)\n",
+				_sr_ruby_load_file.len, _sr_ruby_load_file.s,
+				_sr_ruby_local_version, v, *_sr_ruby_reload_version);
+
+	if (rpc->add(ctx, "{", &vh) < 0) {
+		rpc->fault(ctx, 500, "Server error");
+		return;
+	}
+	rpc->struct_add(vh, "dd",
+			"old", v,
+			"new", *_sr_ruby_reload_version);
+}
+
+static const char* app_ruby_rpc_api_list_doc[2] = {
+	"List kemi exports to ruby",
+	0
+};
+
+static void app_ruby_rpc_api_list(rpc_t* rpc, void* ctx)
+{
+	int i;
+	int n;
+	sr_kemi_t *ket;
+	void* th;
+	void* sh;
+	void* ih;
+
+	if (rpc->add(ctx, "{", &th) < 0) {
+		rpc->fault(ctx, 500, "Internal error root reply");
+		return;
+	}
+	n = 0;
+	for(i=0; i<SR_KEMI_RUBY_EXPORT_SIZE; i++) {
+		ket = sr_kemi_ruby_export_get(i);
+		if(ket==NULL) continue;
+		n++;
+	}
+
+	if(rpc->struct_add(th, "d[",
+				"msize", n,
+				"methods",  &ih)<0)
+	{
+		rpc->fault(ctx, 500, "Internal error array structure");
+		return;
+	}
+	for(i=0; i<SR_KEMI_RUBY_EXPORT_SIZE; i++) {
+		ket = sr_kemi_ruby_export_get(i);
+		if(ket==NULL) continue;
+		if(rpc->struct_add(ih, "{", "func", &sh)<0) {
+			rpc->fault(ctx, 500, "Internal error internal structure");
+			return;
+		}
+		if(rpc->struct_add(sh, "SSSS",
+				"ret", sr_kemi_param_map_get_name(ket->rtype),
+				"module", &ket->mname,
+				"name", &ket->fname,
+				"params", sr_kemi_param_map_get_params(ket->ptypes))<0) {
+			LM_ERR("failed to add the structure with attributes (%d)\n", i);
+			rpc->fault(ctx, 500, "Internal error creating dest struct");
+			return;
+		}
+	}
+}
+
 /**
- * 
+ *
+ */
+rpc_export_t app_ruby_rpc_cmds[] = {
+	{"app_ruby.reload", app_ruby_rpc_reload,
+		app_ruby_rpc_reload_doc, 0},
+	{"app_ruby.api_list", app_ruby_rpc_api_list,
+		app_ruby_rpc_api_list_doc, 0},
+	{0, 0, 0, 0}
+};
+
+/**
+ *
  */
 int app_ruby_init_rpc(void)
 {
+	if (rpc_register_array(app_ruby_rpc_cmds)!=0) {
+		LM_ERR("failed to register RPC commands\n");
+		return -1;
+	}
 	return 0;
 }

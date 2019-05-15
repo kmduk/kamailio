@@ -74,8 +74,14 @@ static int child_init(int);
 
 int stm_t_param(modparam_t type, void* val);
 int stm_e_param(modparam_t type, void* val);
-void stm_timer_exec(unsigned int ticks, void *param);
+void stm_timer_exec(unsigned int ticks, int worker, void *param);
+void stm_main_timer_exec(unsigned int ticks, void *param);
+int stm_get_worker(struct sip_msg *msg, pv_param_t *param, pv_value_t *res);
 
+static pv_export_t rtimer_pvs[] = {
+	{{"rtimer_worker", (sizeof("rtimer_worker")-1)}, PVT_OTHER, stm_get_worker, 0,	0, 0, 0, 0},
+	{ {0, 0}, 0, 0, 0, 0, 0, 0, 0 }
+};
 
 static param_export_t params[]={
 	{"timer",             PARAM_STRING|USE_FUNC_PARAM, (void*)stm_t_param},
@@ -90,14 +96,12 @@ struct module_exports exports= {
 	DEFAULT_DLFLAGS, /* dlopen flags */
 	0,
 	params,
-	0,          /* exported statistics */
-	0,          /* exported MI functions */
-	0,          /* exported pseudo-variables */
-	0,          /* extra processes */
-	mod_init,   /* module initialization function */
+	0,           /* exported RPC methods */
+	rtimer_pvs,  /* exported pseudo-variables */
 	0,
-	0,
-	child_init  /* per-child init function */
+	mod_init,    /* module initialization function */
+	child_init,  /* per-child init function */
+	0
 };
 
 
@@ -123,7 +127,7 @@ static int mod_init(void)
 	{
 		if(it->mode==0)
 		{
-			if(register_timer(stm_timer_exec, (void*)it, it->interval)<0)
+			if(register_timer(stm_main_timer_exec, (void*)it, it->interval)<0)
 			{
 				LM_ERR("failed to register timer function\n");
 				return -1;
@@ -158,15 +162,15 @@ static int child_init(int rank)
 			         i, it->name.len, it->name.s);
 			if(it->flags & RTIMER_INTERVAL_USEC)
 			{
-				if(fork_basic_utimer(PROC_TIMER, si_desc, 1 /*socks flag*/,
-								stm_timer_exec, (void*)it, it->interval
+				if(fork_basic_utimer_w(PROC_TIMER, si_desc, 1 /*socks flag*/,
+								stm_timer_exec, i, (void*)it, it->interval
 								/*usec*/)<0) {
 					LM_ERR("failed to start utimer routine as process\n");
 					return -1; /* error */
 				}
 			} else {
-				if(fork_basic_timer(PROC_TIMER, si_desc, 1 /*socks flag*/,
-								stm_timer_exec, (void*)it, it->interval
+				if(fork_basic_timer_w(PROC_TIMER, si_desc, 1 /*socks flag*/,
+								stm_timer_exec, i, (void*)it, it->interval
 								/*sec*/)<0) {
 					LM_ERR("failed to start timer routine as process\n");
 					return -1; /* error */
@@ -179,13 +183,21 @@ static int child_init(int rank)
 	return 0;
 }
 
-void stm_timer_exec(unsigned int ticks, void *param)
+int rt_worker = 0;
+
+void stm_main_timer_exec(unsigned int ticks, void *param)
+{
+	stm_timer_exec(ticks, 0, param);
+}
+
+void stm_timer_exec(unsigned int ticks, int worker, void *param)
 {
 	stm_timer_t *it;
 	stm_route_t *rt;
 	sip_msg_t *fmsg;
 	sr_kemi_eng_t *keng = NULL;
 	str evname = str_init("rtimer");
+	rt_worker = worker;
 
 	if(param==NULL)
 		return;
@@ -203,7 +215,7 @@ void stm_timer_exec(unsigned int ticks, void *param)
 		if(keng==NULL) {
 			run_top_route(main_rt.rlist[rt->route], fmsg, 0);
 		} else {
-			if(keng->froute(fmsg, EVENT_ROUTE, &rt->route_name, &evname)<0) {
+			if(sr_kemi_route(keng, fmsg, EVENT_ROUTE, &rt->route_name, &evname)<0) {
 				LM_ERR("error running event route kemi callback [%.*s]\n",
 						rt->route_name.len, rt->route_name.s);
 			}
@@ -384,3 +396,7 @@ int stm_e_param(modparam_t type, void *val)
 	return 0;
 }
 
+int stm_get_worker(struct sip_msg *msg, pv_param_t *param, pv_value_t *res)
+{
+	return pv_get_sintval(msg, param, res, rt_worker);
+}

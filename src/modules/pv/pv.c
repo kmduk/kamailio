@@ -40,9 +40,7 @@
 #include "pv_time.h"
 #include "pv_trans.h"
 #include "pv_select.h"
-#ifdef WITH_XAVP
 #include "pv_xavp.h"
-#endif
 #include "pv_api.h"
 
 MODULE_VERSION
@@ -90,12 +88,11 @@ static pv_export_t mod_pvs[] = {
 		pv_parse_snd_name, 0, 0, 0 },
 	{ {"sndfrom", (sizeof("sndfrom")-1)}, PVT_OTHER, pv_get_sndfrom, 0,
 		pv_parse_snd_name, 0, 0, 0 },
-#ifdef WITH_XAVP
+	{ {"rcv", (sizeof("rcv")-1)}, PVT_OTHER, pv_get_rcv, 0,
+		pv_parse_rcv_name, 0, 0, 0 },
 	{ {"xavp", sizeof("xavp")-1}, /* xavp */
 		PVT_XAVP, pv_get_xavp, pv_set_xavp,
 		pv_parse_xavp_name, 0, 0, 0 },
-#endif
-
 	{{"avp", (sizeof("avp")-1)}, PVT_AVP, pv_get_avp, pv_set_avp,
 		pv_parse_avp_name, pv_parse_index, 0, 0},
 	{{"hdr", (sizeof("hdr")-1)}, PVT_HDR, pv_get_hdr, 0, pv_parse_hdr_name,
@@ -189,6 +186,8 @@ static pv_export_t mod_pvs[] = {
 	{{"dd", (sizeof("dd")-1)}, /* */
 		PVT_OTHER, pv_get_dsturi_attr, 0,
 		0, 0, pv_init_iname, 1},
+	{{"def", (sizeof("env")-1)}, PVT_OTHER, pv_get_def, 0,
+		pv_parse_def_name, 0, 0, 0},
 	{{"di", (sizeof("di")-1)}, /* */
 		PVT_OTHER, pv_get_diversion, 0,
 		0, 0, pv_init_iname, 1},
@@ -511,6 +510,8 @@ static pv_export_t mod_pvs[] = {
 		pv_parse_expires_name, 0, 0, 0 },
 	{ {"msg", (sizeof("msg")-1)}, PVT_OTHER, pv_get_msg_attrs, 0,
 		pv_parse_msg_attrs_name, 0, 0, 0 },
+	{ {"ksr", (sizeof("ksr")-1)}, PVT_OTHER, pv_get_ksr_attrs, 0,
+		pv_parse_ksr_attrs_name, 0, 0, 0 },
 
 	{ {0, 0}, 0, 0, 0, 0, 0, 0, 0 }
 };
@@ -533,6 +534,12 @@ static int pv_typeof(sip_msg_t *msg, char *pv, char *t);
 static int pv_not_empty(sip_msg_t *msg, char *pv, char *s2);
 static int w_xavp_params_explode(sip_msg_t *msg, char *pparams, char *pxname);
 static int w_xavp_params_implode(sip_msg_t *msg, char *pxname, char *pvname);
+static int w_xavp_set_child_ival(sip_msg_t *msg, char *prname, char *pcname,
+		char *pval);
+static int w_xavp_set_child_sval(sip_msg_t *msg, char *prname, char *pcname,
+		char *pval);
+static int w_xavp_rm(sip_msg_t *msg, char *prname, char *p2);
+static int w_xavp_rm_child(sip_msg_t *msg, char *prname, char *pcname);
 static int w_sbranch_set_ruri(sip_msg_t *msg, char p1, char *p2);
 static int w_sbranch_append(sip_msg_t *msg, char p1, char *p2);
 static int w_sbranch_reset(sip_msg_t *msg, char p1, char *p2);
@@ -542,6 +549,9 @@ static int w_xavp_to_var(sip_msg_t *msg, char *p1);
 int pv_evalx_fixup(void** param, int param_no);
 int w_pv_evalx(struct sip_msg *msg, char *dst, str *fmt);
 
+static int fixup_xavp_set_child_ival(void** param, int param_no);
+static int fixup_free_xavp_set_child_ival(void** param, int param_no);
+
 static int pv_init_rpc(void);
 int pv_register_api(pv_api_t*);
 
@@ -550,14 +560,12 @@ static cmd_export_t cmds[]={
 		ANY_ROUTE },
 	{"pv_unset",  (cmd_function)pv_unset,  1, fixup_pvar_null, 0,
 		ANY_ROUTE },
-#ifdef WITH_XAVP
 	{"pv_xavp_print",  (cmd_function)pv_xavp_print,  0, 0, 0,
 		ANY_ROUTE },
 	{"pv_var_to_xavp",  (cmd_function)w_var_to_xavp, 2, fixup_spve_spve,
 		fixup_free_spve_spve, ANY_ROUTE },
 	{"pv_xavp_to_var",  (cmd_function)w_xavp_to_var, 1, fixup_spve_null,
 		fixup_free_spve_null, ANY_ROUTE },
-#endif
 	{"is_int", (cmd_function)is_int, 1, fixup_pvar_null, fixup_free_pvar_null,
 		ANY_ROUTE},
 	{"typeof", (cmd_function)pv_typeof,       2, fixup_pvar_none,
@@ -571,6 +579,18 @@ static cmd_export_t cmds[]={
 		ANY_ROUTE},
 	{"xavp_params_implode", (cmd_function)w_xavp_params_implode,
 		2, fixup_spve_str, fixup_free_spve_str,
+		ANY_ROUTE},
+	{"xavp_set_child_ival", (cmd_function)w_xavp_set_child_ival,
+		3, fixup_xavp_set_child_ival, fixup_free_xavp_set_child_ival,
+		ANY_ROUTE},
+	{"xavp_set_child_sval", (cmd_function)w_xavp_set_child_sval,
+		3, fixup_spve_all, fixup_free_spve_all,
+		ANY_ROUTE},
+	{"xavp_rm", (cmd_function)w_xavp_rm,
+		1, fixup_spve_null, fixup_free_spve_null,
+		ANY_ROUTE},
+	{"xavp_rm_child", (cmd_function)w_xavp_rm_child,
+		2, fixup_spve_spve, fixup_free_spve_spve,
 		ANY_ROUTE},
 	{"sbranch_set_ruri",  (cmd_function)w_sbranch_set_ruri,  0, 0, 0,
 		ANY_ROUTE },
@@ -589,18 +609,16 @@ static cmd_export_t cmds[]={
 
 /** module exports */
 struct module_exports exports= {
-	"pv",
+	"pv",            /* module name */
 	DEFAULT_DLFLAGS, /* dlopen flags */
-	cmds,
-	params,
-	0,          /* exported statistics */
-	0,          /* exported MI functions */
-	mod_pvs,    /* exported pseudo-variables */
-	0,          /* extra processes */
-	mod_init,   /* module initialization function */
-	0,
-	mod_destroy,
-	0           /* per-child init function */
+	cmds,            /* cmd (cfg function) exports */
+	params,          /* param exports */
+	0,               /* RPC method exports */
+	mod_pvs,         /* pv exports */
+	0,               /* response handling function */
+	mod_init,        /* module init function */
+	0,               /* per-child init function */
+	mod_destroy      /* module destroy function */
 };
 
 static int mod_init(void)
@@ -884,6 +902,168 @@ static int w_xavp_params_implode(sip_msg_t *msg, char *pxname, char *pvname)
 /**
  *
  */
+static int ki_xavp_set_child_ival(sip_msg_t *msg, str *rname, str *cname,
+		int ival)
+{
+	int ret;
+
+	ret = xavp_set_child_ival(rname, cname, ival);
+
+	return (ret<0)?ret:1;
+}
+
+/**
+ *
+ */
+static int w_xavp_set_child_ival(sip_msg_t *msg, char *prname, char *pcname,
+		char *pval)
+{
+	str rname = STR_NULL;
+	str cname = STR_NULL;
+	int ival = 0;
+
+	if(fixup_get_svalue(msg, (gparam_t*)prname, &rname)<0) {
+		LM_ERR("failed to get root xavp name\n");
+		return -1;
+	}
+	if(fixup_get_svalue(msg, (gparam_t*)pcname, &cname)<0) {
+		LM_ERR("failed to get child xavp name\n");
+		return -1;
+	}
+	if(fixup_get_ivalue(msg, (gparam_t*)pval, &ival)<0) {
+		LM_ERR("failed to get the value\n");
+		return -1;
+	}
+
+	return ki_xavp_set_child_ival(msg, &rname, &cname, ival);
+}
+
+/**
+ *
+ */
+static int ki_xavp_set_child_sval(sip_msg_t *msg, str *rname, str *cname,
+		str *sval)
+{
+	int ret;
+
+	ret = xavp_set_child_sval(rname, cname, sval);
+
+	return (ret<0)?ret:1;
+}
+
+/**
+ *
+ */
+static int w_xavp_set_child_sval(sip_msg_t *msg, char *prname, char *pcname,
+		char *pval)
+{
+	str rname;
+	str cname;
+	str sval;
+
+	if(fixup_get_svalue(msg, (gparam_t*)prname, &rname)<0) {
+		LM_ERR("failed to get root xavp name\n");
+		return -1;
+	}
+	if(fixup_get_svalue(msg, (gparam_t*)pcname, &cname)<0) {
+		LM_ERR("failed to get child xavp name\n");
+		return -1;
+	}
+	if(fixup_get_svalue(msg, (gparam_t*)pval, &sval)<0) {
+		LM_ERR("failed to get the value\n");
+		return -1;
+	}
+
+	return ki_xavp_set_child_sval(msg, &rname, &cname, &sval);
+}
+
+/**
+ *
+ */
+static int fixup_xavp_set_child_ival(void** param, int param_no)
+{
+	if(param_no==1 || param_no==2)
+		return fixup_spve_all(param, param_no);
+	if(param_no==3)
+		return fixup_igp_all(param, param_no);
+	return 0;
+}
+
+/**
+ *
+ */
+static int fixup_free_xavp_set_child_ival(void** param, int param_no)
+{
+	if(param_no==1 || param_no==2)
+		return fixup_free_spve_all(param, param_no);
+	if(param_no==3)
+		return fixup_free_igp_all(param, param_no);
+
+	return 0;
+}
+
+/**
+ *
+ */
+static int ki_xavp_rm(sip_msg_t *msg, str *rname)
+{
+	int ret;
+
+	ret = xavp_rm_by_index(rname, 0, NULL);
+
+	return (ret==0)?1:ret;
+}
+
+/**
+ *
+ */
+static int w_xavp_rm(sip_msg_t *msg, char *prname, char *p2)
+{
+	str rname;
+
+	if(fixup_get_svalue(msg, (gparam_t*)prname, &rname)<0) {
+		LM_ERR("failed to get root xavp name\n");
+		return -1;
+	}
+
+	return ki_xavp_rm(msg, &rname);
+}
+
+/**
+ *
+ */
+static int ki_xavp_rm_child(sip_msg_t *msg, str *rname, str *cname)
+{
+	int ret;
+
+	ret = xavp_rm_child_by_index(rname, cname, 0);
+
+	return (ret==0)?1:ret;
+}
+
+/**
+ *
+ */
+static int w_xavp_rm_child(sip_msg_t *msg, char *prname, char *pcname)
+{
+	str rname;
+	str cname;
+
+	if(fixup_get_svalue(msg, (gparam_t*)prname, &rname)<0) {
+		LM_ERR("failed to get root xavp name\n");
+		return -1;
+	}
+	if(fixup_get_svalue(msg, (gparam_t*)pcname, &cname)<0) {
+		LM_ERR("failed to get child xavp name\n");
+		return -1;
+	}
+
+	return ki_xavp_rm_child(msg, &rname, &cname);
+}
+
+/**
+ *
+ */
 static int w_sbranch_set_ruri(sip_msg_t *msg, char p1, char *p2)
 {
 	if(sbranch_set_ruri(msg)<0)
@@ -1125,6 +1305,26 @@ static sr_kemi_t sr_kemi_pvx_exports[] = {
 	},
 	{ str_init("pvx"), str_init("xavp_params_implode"),
 		SR_KEMIP_INT, ki_xavp_params_implode,
+		{ SR_KEMIP_STR, SR_KEMIP_STR, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init("pvx"), str_init("xavp_set_child_ival"),
+		SR_KEMIP_INT, ki_xavp_set_child_ival,
+		{ SR_KEMIP_STR, SR_KEMIP_STR, SR_KEMIP_INT,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init("pvx"), str_init("xavp_set_child_sval"),
+		SR_KEMIP_INT, ki_xavp_set_child_sval,
+		{ SR_KEMIP_STR, SR_KEMIP_STR, SR_KEMIP_STR,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init("pvx"), str_init("xavp_rm"),
+		SR_KEMIP_INT, ki_xavp_rm,
+		{ SR_KEMIP_STR, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init("pvx"), str_init("xavp_rm_child"),
+		SR_KEMIP_INT, ki_xavp_rm_child,
 		{ SR_KEMIP_STR, SR_KEMIP_STR, SR_KEMIP_NONE,
 			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
 	},

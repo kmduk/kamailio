@@ -48,6 +48,10 @@
 #include "uac.h" /* free_local_ack */
 
 
+#define T_UAC_PTR(T) ((tm_ua_client_t*)((char*)T + sizeof(tm_cell_t) \
+								+ MD5_LEN - sizeof(((tm_cell_t*)0)->md5)))
+
+
 static enum kill_reason kr;
 
 /* pointer to the big table where all the transaction data lives */
@@ -128,6 +132,10 @@ void free_cell_helper(
 
 	LM_DBG("freeing transaction %p from %s:%u\n", dead_cell, fname, fline);
 
+	if(dead_cell==NULL) {
+		return;
+	}
+
 	if(dead_cell->prev_c != NULL && dead_cell->next_c != NULL) {
 		if(likely(silent == 0)) {
 			LM_WARN("removed cell %p is still linked in hash table (%s:%u)\n",
@@ -143,7 +151,17 @@ void free_cell_helper(
 		unlink_timers(dead_cell);
 		remove_from_hash_table_unsafe(dead_cell);
 	}
-	release_cell_lock(dead_cell);
+	release_cell_lock(dead_cell); /* does nothing */
+
+	dead_cell->fcount++;
+	if(dead_cell->fcount!=1) {
+		LM_WARN("unexpected fcount value: %d\n", dead_cell->fcount);
+	}
+	if(dead_cell->uac==NULL || dead_cell->uac!=T_UAC_PTR(dead_cell)) {
+		LM_WARN("unexpected tm cell content: %p\n", dead_cell);
+		return;
+	}
+
 	if(unlikely(has_tran_tmcbs(dead_cell, TMCB_DESTROY)))
 		run_trans_callbacks(TMCB_DESTROY, dead_cell, 0, 0, 0);
 
@@ -242,11 +260,10 @@ void free_cell_helper(
 		destroy_avp_list_unsafe(&dead_cell->uri_avps_from);
 	if(dead_cell->uri_avps_to)
 		destroy_avp_list_unsafe(&dead_cell->uri_avps_to);
-#ifdef WITH_XAVP
 	if(dead_cell->xavps_list)
 		xavp_destroy_list_unsafe(&dead_cell->xavps_list);
-#endif
 
+	memset(dead_cell, 0, sizeof(tm_cell_t));
 	/* the cell's body */
 	shm_free_unsafe(dead_cell);
 
@@ -306,9 +323,7 @@ struct cell *build_cell(struct sip_msg *p_msg)
 	int sip_msg_len;
 	avp_list_t *old;
 	struct tm_callback *cbs, *cbs_tmp;
-#ifdef WITH_XAVP
 	sr_xavp_t **xold;
-#endif
 	unsigned int cell_size;
 
 	/* allocs a new cell, add space for:
@@ -330,9 +345,7 @@ struct cell *build_cell(struct sip_msg *p_msg)
 	new_cell->uas.response.my_T = new_cell;
 	init_rb_timers(&new_cell->uas.response);
 	/* UAC */
-	new_cell->uac =
-			(struct ua_client *)((char *)new_cell + sizeof(struct cell)
-								+ MD5_LEN - sizeof(((struct cell *)0)->md5));
+	new_cell->uac = T_UAC_PTR(new_cell);
 	/* timers */
 	init_cell_timers(new_cell);
 
@@ -354,11 +367,9 @@ struct cell *build_cell(struct sip_msg *p_msg)
 	new_cell->user_avps_to = *old;
 	*old = 0;
 
-#ifdef WITH_XAVP
 	xold = xavp_set_list(&new_cell->xavps_list);
 	new_cell->xavps_list = *xold;
 	*xold = 0;
-#endif
 
 	/* We can just store pointer to domain avps in the transaction context,
 	 * because they are read-only */
@@ -417,15 +428,11 @@ error:
 	destroy_avp_list(&new_cell->user_avps_to);
 	destroy_avp_list(&new_cell->uri_avps_from);
 	destroy_avp_list(&new_cell->uri_avps_to);
-#ifdef WITH_XAVP
 	xavp_destroy_list(&new_cell->xavps_list);
-#endif
 	shm_free(new_cell);
 	/* unlink transaction AVP list and link back the global AVP list (bogdan)*/
 	reset_avps();
-#ifdef WITH_XAVP
 	xavp_reset_list();
-#endif
 	return NULL;
 }
 
@@ -520,9 +527,7 @@ void tm_xdata_swap(tm_cell_t *t, tm_xlinks_t *xd, int mode)
 				AVP_TRACK_FROM | AVP_CLASS_DOMAIN, &t->domain_avps_from);
 		x->domain_avps_to = set_avp_list(
 				AVP_TRACK_TO | AVP_CLASS_DOMAIN, &t->domain_avps_to);
-#ifdef WITH_XAVP
 		x->xavps_list = xavp_set_list(&t->xavps_list);
-#endif
 	} else if(mode == 1) {
 		/* restore original avp list */
 		set_avp_list(AVP_TRACK_FROM | AVP_CLASS_URI, x->uri_avps_from);
@@ -531,9 +536,7 @@ void tm_xdata_swap(tm_cell_t *t, tm_xlinks_t *xd, int mode)
 		set_avp_list(AVP_TRACK_TO | AVP_CLASS_USER, x->user_avps_to);
 		set_avp_list(AVP_TRACK_FROM | AVP_CLASS_DOMAIN, x->domain_avps_from);
 		set_avp_list(AVP_TRACK_TO | AVP_CLASS_DOMAIN, x->domain_avps_to);
-#ifdef WITH_XAVP
 		xavp_set_list(x->xavps_list);
-#endif
 	}
 }
 
@@ -550,9 +553,7 @@ void tm_xdata_replace(tm_xdata_t *newxd, tm_xlinks_t *bakxd)
 		set_avp_list(
 				AVP_TRACK_FROM | AVP_CLASS_DOMAIN, bakxd->domain_avps_from);
 		set_avp_list(AVP_TRACK_TO | AVP_CLASS_DOMAIN, bakxd->domain_avps_to);
-#ifdef WITH_XAVP
 		xavp_set_list(bakxd->xavps_list);
-#endif
 		return;
 	}
 
@@ -569,9 +570,7 @@ void tm_xdata_replace(tm_xdata_t *newxd, tm_xlinks_t *bakxd)
 				AVP_TRACK_FROM | AVP_CLASS_DOMAIN, &newxd->domain_avps_from);
 		bakxd->domain_avps_to = set_avp_list(
 				AVP_TRACK_TO | AVP_CLASS_DOMAIN, &newxd->domain_avps_to);
-#ifdef WITH_XAVP
 		bakxd->xavps_list = xavp_set_list(&newxd->xavps_list);
-#endif
 		return;
 	}
 }
@@ -602,7 +601,6 @@ void tm_log_transaction(tm_cell_t *tcell, int llev, char *ltext)
 	LOG(llev, "%s [end] transaction %p\n", ltext, tcell);
 }
 
-#define TM_LIFETIME_LIMIT 90
 /* clean active but very old transactions */
 void tm_clean_lifetime(void)
 {

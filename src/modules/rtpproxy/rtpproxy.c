@@ -273,18 +273,16 @@ static param_export_t params[] = {
 };
 
 struct module_exports exports = {
-	"rtpproxy",
+	"rtpproxy",      /* module name */
 	DEFAULT_DLFLAGS, /* dlopen flags */
-	cmds,
-	params,
-	0,           /* exported statistics */
-	0,           /* exported MI functions */
-	mod_pvs,     /* exported pseudo-variables */
-	0,           /* extra processes */
-	mod_init,
-	0,           /* reply processing */
-	mod_destroy, /* destroy function */
-	child_init
+	cmds,            /* cmd exports */
+	params,          /* param exports */
+	0,               /* RPC method exports */
+	mod_pvs,         /* exported pseudo-variables */
+	0,               /* reply processing */
+	mod_init,        /* module init function */
+	child_init,      /* per-child init function */
+	mod_destroy,     /* destroy function */
 };
 
 
@@ -2641,7 +2639,7 @@ force_rtp_proxy(struct sip_msg* msg, char* str1, char* str2, int offer,
 			LM_DBG("alter port body1='%.*s'\n", body1.len, body1.s);
 #endif
 			/* do not do it if old port was 0 (means media disable)
-			 * - check if actually should be better done in rtpptoxy,
+			 * - check if actually should be better done in rtpproxy,
 			 *   by returning also 0
 			 * - or by not sending to rtpproxy the old port if 0
 			 */

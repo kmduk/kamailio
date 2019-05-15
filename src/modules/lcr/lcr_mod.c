@@ -360,16 +360,14 @@ static param_export_t params[] = {
 struct module_exports exports = {
 	"lcr", 
 	DEFAULT_DLFLAGS, /* dlopen flags */
-	cmds,      /* Exported functions */
-	params,    /* Exported parameters */
-	0,         /* exported statistics */
-	0,         /* exported MI functions */
-	0,         /* exported pseudo-variables */
-	0,         /* extra processes */
-	mod_init,  /* module initialization function */
-	0,         /* response function */
-	destroy,   /* destroy function */
-	child_init /* child initialization function */
+	cmds,      	 /* Exported functions */
+	params,    	 /* Exported parameters */
+	0,         	 /* exported RPC methods */
+	0,         	 /* exported pseudo-variables */
+	0,         	 /* response function */
+	mod_init,  	 /* module initialization function */
+	child_init,	 /* child initialization function */
+	destroy		 /* destroy function */
 };
 /* clang-format on */
 
@@ -677,18 +675,20 @@ static int mod_init(void)
 		LM_ERR("unable to open database connection\n");
 		return -1;
 	}
-	if((db_check_table_version(
-				&lcr_dbf, dbh, &lcr_rule_table, LCR_RULE_TABLE_VERSION)
-			   < 0)
-			|| (db_check_table_version(&lcr_dbf, dbh, &lcr_rule_target_table,
-						LCR_RULE_TARGET_TABLE_VERSION)
-					   < 0)
-			|| (db_check_table_version(
-						&lcr_dbf, dbh, &lcr_gw_table, LCR_GW_TABLE_VERSION)
-					   < 0)) {
-		LM_ERR("error during table version check\n");
-		lcr_db_close();
-		goto err;
+	if(db_check_table_version(&lcr_dbf, dbh, &lcr_rule_table,
+			LCR_RULE_TABLE_VERSION) < 0) {
+		DB_TABLE_VERSION_ERROR(lcr_rule_table);
+		goto dberror;
+	}
+	if(db_check_table_version(&lcr_dbf, dbh, &lcr_rule_target_table,
+			LCR_RULE_TARGET_TABLE_VERSION) < 0) {
+		DB_TABLE_VERSION_ERROR(lcr_rule_target_table);
+		goto dberror;
+	}
+	if (db_check_table_version(&lcr_dbf, dbh, &lcr_gw_table,
+			LCR_GW_TABLE_VERSION) < 0) {
+		DB_TABLE_VERSION_ERROR(lcr_gw_table);
+		goto dberror;
 	}
 	lcr_db_close();
 
@@ -764,6 +764,9 @@ static int mod_init(void)
 	lock_release(reload_lock);
 
 	return 0;
+
+dberror:
+	lcr_db_close();
 
 err:
 	free_shared_memory();
@@ -1045,7 +1048,8 @@ static int insert_gws(db1_res_t *res, struct gw_info *gws,
 	for(i = 0; i < RES_ROW_N(res); i++) {
 		row = RES_ROWS(res) + i;
 		if((VAL_NULL(ROW_VALUES(row) + 12) == 1)
-				|| (VAL_TYPE(ROW_VALUES(row) + 12) != DB1_INT)) {
+				|| ((VAL_TYPE(ROW_VALUES(row) + 12) != DB1_INT)
+						   && (VAL_TYPE(ROW_VALUES(row) + 12) != DB1_UINT))) {
 			LM_ERR("lcr_gw id at row <%u> is null or not int\n", i);
 			return 0;
 		}
@@ -1053,7 +1057,8 @@ static int insert_gws(db1_res_t *res, struct gw_info *gws,
 		if(VAL_NULL(ROW_VALUES(row) + 11)) {
 			defunct_until = 0;
 		} else {
-			if(VAL_TYPE(ROW_VALUES(row) + 11) != DB1_INT) {
+			if((VAL_TYPE(ROW_VALUES(row) + 11) != DB1_INT)
+					&& (VAL_TYPE(ROW_VALUES(row) + 11) != DB1_UINT)) {
 				LM_ERR("lcr_gw defunct at row <%u> is not int\n", i);
 				return 0;
 			}
@@ -1137,7 +1142,8 @@ static int insert_gws(db1_res_t *res, struct gw_info *gws,
 		if(VAL_NULL(ROW_VALUES(row) + 2)) {
 			port = 0;
 		} else {
-			if(VAL_TYPE(ROW_VALUES(row) + 2) != DB1_INT) {
+			if((VAL_TYPE(ROW_VALUES(row) + 2) != DB1_INT)
+					&& (VAL_TYPE(ROW_VALUES(row) + 2) != DB1_UINT)) {
 				LM_ERR("lcr_gw port at row <%u> is not int\n", i);
 				return 0;
 			}
@@ -1151,7 +1157,8 @@ static int insert_gws(db1_res_t *res, struct gw_info *gws,
 			scheme = "sip:";
 			scheme_len = 4;
 		} else {
-			if(VAL_TYPE(ROW_VALUES(row) + 3) != DB1_INT) {
+			if((VAL_TYPE(ROW_VALUES(row) + 3) != DB1_INT)
+					&& (VAL_TYPE(ROW_VALUES(row) + 3) != DB1_UINT)) {
 				LM_ERR("lcr_gw uri scheme at row <%u> is not int\n", i);
 				return 0;
 			}
@@ -1177,7 +1184,8 @@ static int insert_gws(db1_res_t *res, struct gw_info *gws,
 			transport = "";
 			transport_len = 0;
 		} else {
-			if(VAL_TYPE(ROW_VALUES(row) + 4) != DB1_INT) {
+			if((VAL_TYPE(ROW_VALUES(row) + 4) != DB1_INT)
+					&& (VAL_TYPE(ROW_VALUES(row) + 4) != DB1_UINT)) {
 				LM_ERR("lcr_gw transport at row <%u> is not int\n", i);
 				return 0;
 			}
@@ -1274,7 +1282,8 @@ static int insert_gws(db1_res_t *res, struct gw_info *gws,
 		if(VAL_NULL(ROW_VALUES(row) + 7)) {
 			strip = 0;
 		} else {
-			if(VAL_TYPE(ROW_VALUES(row) + 7) != DB1_INT) {
+			if((VAL_TYPE(ROW_VALUES(row) + 7) != DB1_INT)
+					&& (VAL_TYPE(ROW_VALUES(row) + 7) != DB1_UINT)) {
 				LM_ERR("lcr_gw strip count at row <%u> is not int\n", i);
 				return 0;
 			}
@@ -1332,7 +1341,8 @@ static int insert_gws(db1_res_t *res, struct gw_info *gws,
 		if(VAL_NULL(ROW_VALUES(row) + 10)) {
 			flags = 0;
 		} else {
-			if(VAL_TYPE(ROW_VALUES(row) + 10) != DB1_INT) {
+			if((VAL_TYPE(ROW_VALUES(row) + 10) != DB1_INT)
+					&& (VAL_TYPE(ROW_VALUES(row) + 10) != DB1_UINT)) {
 				LM_ERR("lcr_gw flags at row <%u> is not int\n", i);
 				return 0;
 			}
@@ -1465,7 +1475,9 @@ int reload_tables()
 				row = RES_ROWS(res) + i;
 
 				if((VAL_NULL(ROW_VALUES(row)) == 1)
-						|| (VAL_TYPE(ROW_VALUES(row)) != DB1_INT)) {
+						|| ((VAL_TYPE(ROW_VALUES(row)) != DB1_INT)
+								   && (VAL_TYPE(ROW_VALUES(row))
+											  != DB1_UINT))) {
 					LM_ERR("lcr rule id at row <%u> is null or not int\n", i);
 					goto err;
 				}
@@ -1506,7 +1518,9 @@ int reload_tables()
 				}
 
 				if((VAL_NULL(ROW_VALUES(row) + 3) == 1)
-						|| (VAL_TYPE(ROW_VALUES(row) + 3) != DB1_INT)) {
+						|| ((VAL_TYPE(ROW_VALUES(row) + 3) != DB1_INT)
+								   && (VAL_TYPE(ROW_VALUES(row) + 3)
+											  != DB1_UINT))) {
 					LM_ERR("lcr rule <%u> stopper is NULL or not int\n",
 							rule_id);
 					goto err;
@@ -1518,7 +1532,9 @@ int reload_tables()
 				}
 
 				if((VAL_NULL(ROW_VALUES(row) + 4) == 1)
-						|| (VAL_TYPE(ROW_VALUES(row) + 4) != DB1_INT)) {
+						|| ((VAL_TYPE(ROW_VALUES(row) + 4) != DB1_INT)
+								   && (VAL_TYPE(ROW_VALUES(row) + 4)
+											  != DB1_UINT))) {
 					LM_ERR("lcr rule <%u> enabled is NULL or not int\n",
 							rule_id);
 					goto err;
@@ -1727,7 +1743,9 @@ int reload_tables()
 			for(i = 0; i < RES_ROW_N(res); i++) {
 				row = RES_ROWS(res) + i;
 				if((VAL_NULL(ROW_VALUES(row)) == 1)
-						|| (VAL_TYPE(ROW_VALUES(row)) != DB1_INT)) {
+						|| ((VAL_TYPE(ROW_VALUES(row)) != DB1_INT)
+								   && (VAL_TYPE(ROW_VALUES(row))
+											  != DB1_UINT))) {
 					LM_ERR("lcr_rule_target rule_id at row <%u> is null "
 						   "or not int\n",
 							i);
@@ -1735,7 +1753,9 @@ int reload_tables()
 				}
 				rule_id = (unsigned int)VAL_INT(ROW_VALUES(row));
 				if((VAL_NULL(ROW_VALUES(row) + 1) == 1)
-						|| (VAL_TYPE(ROW_VALUES(row) + 1) != DB1_INT)) {
+						|| ((VAL_TYPE(ROW_VALUES(row) + 1) != DB1_INT)
+								   && (VAL_TYPE(ROW_VALUES(row) + 1)
+											  != DB1_UINT))) {
 					LM_ERR("lcr_rule_target gw_id at row <%u> is null "
 						   "or not int\n",
 							i);
@@ -1743,7 +1763,9 @@ int reload_tables()
 				}
 				gw_id = (unsigned int)VAL_INT(ROW_VALUES(row) + 1);
 				if((VAL_NULL(ROW_VALUES(row) + 2) == 1)
-						|| (VAL_TYPE(ROW_VALUES(row) + 2) != DB1_INT)) {
+						|| ((VAL_TYPE(ROW_VALUES(row) + 2) != DB1_INT)
+								   && (VAL_TYPE(ROW_VALUES(row) + 2)
+											  != DB1_UINT))) {
 					LM_ERR("lcr_rule_target priority at row <%u> is null "
 						   "or not int\n",
 							i);
@@ -1757,7 +1779,9 @@ int reload_tables()
 					goto err;
 				}
 				if((VAL_NULL(ROW_VALUES(row) + 3) == 1)
-						|| (VAL_TYPE(ROW_VALUES(row) + 3) != DB1_INT)) {
+						|| ((VAL_TYPE(ROW_VALUES(row) + 3) != DB1_INT)
+								   && (VAL_TYPE(ROW_VALUES(row) + 3)
+											  != DB1_UINT))) {
 					LM_ERR("lcr_rule_target weight at row <%u> is null "
 						   "or not int\n",
 							i);
@@ -2067,11 +2091,11 @@ void add_gws_into_avps(struct gw_info *gws, struct matched_gw_info *matched_gws,
 
 
 /*
- * Loads ids matching GWs in priority order into gw_ids array.
+ * Loads ids matching GWs in priority order into gw_indexes array.
  * Returns the number of entries in the array.
  */
 int load_gws_dummy(int lcr_id, str *ruri_user, str *from_uri, str *request_uri,
-		unsigned int *gw_ids)
+		unsigned int *gw_indexes)
 {
 	int i, j;
 	unsigned int gw_index, now, dex;
@@ -2211,7 +2235,7 @@ done:
 	for(i = gw_index - 1; i >= 0; i--) {
 		if(matched_gws[i].duplicate == 1)
 			continue;
-		gw_ids[j] = gws[matched_gws[i].gw_index].gw_id;
+		gw_indexes[j] = matched_gws[i].gw_index;
 		j++;
 	}
 

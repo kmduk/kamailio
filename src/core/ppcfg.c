@@ -32,6 +32,7 @@
 #include "dprint.h"
 
 #include "ppcfg.h"
+#include "fmsg.h"
 
 typedef struct _pp_subst_rule {
 	char *indata;
@@ -57,7 +58,7 @@ int pp_subst_add(char *data)
 	pr = (pp_subst_rule_t*)pkg_malloc(sizeof(pp_subst_rule_t));
 	if(pr==NULL)
 	{
-		LM_ERR("no more pkg\n");
+		PKG_MEM_ERROR;
 		return -1;
 	}
 	memset(pr, 0, sizeof(pp_subst_rule_t));
@@ -163,7 +164,7 @@ found_repl:
 	return 0;
 
 error:
-	return 1;
+	return -1;
 }
 
 int pp_subst_run(char **data)
@@ -184,7 +185,8 @@ int pp_subst_run(char **data)
 	i = 0;
 	while(pr)
 	{
-		result=subst_str(*data, 0,
+		sip_msg_t *fmsg = faked_msg_get_next();
+		result=subst_str(*data, fmsg,
 				(struct subst_expr*)pr->ppdata, 0); /* pkg malloc'ed result */
 		if(result!=NULL)
 		{
@@ -222,6 +224,58 @@ void pp_ifdef_level_check(void)
 	} else {
 		LM_DBG("same number of pairing preprocessor directives"
 			" #!IF[N]DEF - #!ENDIF\n");
+	}
+}
+
+/**
+ *
+ */
+void pp_define_core(void)
+{
+	char defval[64];
+	char *p;
+	int n;
+
+	strcpy(defval, NAME);
+	p = defval;
+	while(*p) {
+		*p = (char)toupper(*p);
+		p++;
+	}
+
+	n = snprintf(p, 64 - (int)(p-defval), "_%d", VERSIONVAL/1000000);
+	if(n<0 || n>=64 - (int)(p-defval)) {
+		LM_ERR("faild to build define token\n");
+		return;
+	}
+	pp_define_set_type(0);
+	if(pp_define(strlen(defval), defval)<0) {
+		LM_ERR("unable to set cfg define: %s\n", defval);
+		return;
+	}
+
+	n = snprintf(p, 64 - (int)(p-defval), "_%d_%d", VERSIONVAL/1000000,
+			(VERSIONVAL%1000000)/1000);
+	if(n<0 || n>=64 - (int)(p-defval)) {
+		LM_ERR("faild to build define token\n");
+		return;
+	}
+	pp_define_set_type(0);
+	if(pp_define(strlen(defval), defval)<0) {
+		LM_ERR("unable to set cfg define: %s\n", defval);
+		return;
+	}
+
+	n = snprintf(p, 64 - (int)(p-defval), "_%d_%d_%d", VERSIONVAL/1000000,
+			(VERSIONVAL%1000000)/1000, VERSIONVAL%1000);
+	if(n<0 || n>=64 - (int)(p-defval)) {
+		LM_ERR("faild to build define token\n");
+		return;
+	}
+	pp_define_set_type(0);
+	if(pp_define(strlen(defval), defval)<0) {
+		LM_ERR("unable to set cfg define: %s\n", defval);
+		return;
 	}
 }
 

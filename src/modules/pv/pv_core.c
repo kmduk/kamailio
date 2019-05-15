@@ -32,6 +32,7 @@
 #include "../../core/strutils.h"
 #include "../../core/tcp_conn.h"
 #include "../../core/pvapi.h"
+#include "../../core/ppcfg.h"
 #include "../../core/trim.h"
 #include "../../core/msg_translator.h"
 
@@ -1334,7 +1335,7 @@ int pv_get_dset(struct sip_msg *msg, pv_param_t *param,
 	if(msg==NULL)
 		return -1;
 
-	s.s = print_dset(msg, &s.len);
+	s.s = print_dset(msg, &s.len, 0);
 	if (s.s == NULL)
 		return pv_get_null(msg, param, res);
 	s.len -= CRLF_LEN;
@@ -1900,6 +1901,8 @@ int pv_get_hdr(struct sip_msg *msg,  pv_param_t *param, pv_value_t *res)
 			if (tv.ri==hf->type)
 				break;
 		} else {
+			if(tv.rs.len==1 && tv.rs.s[0]=='*')
+				break;
 			if (cmp_hdrname_str(&hf->name, &tv.rs)==0)
 				break;
 		}
@@ -1953,8 +1956,10 @@ int pv_get_hdr(struct sip_msg *msg,  pv_param_t *param, pv_value_t *res)
 					if (tv.ri==hf->type)
 						break;
 				} else {
+					if(tv.rs.len==1 && tv.rs.s[0]=='*')
+						break;
 					if (cmp_hdrname_str(&hf->name, &tv.rs)==0)
-					break;
+						break;
 				}
 			}
 		} while (hf);
@@ -1976,8 +1981,11 @@ int pv_get_hdr(struct sip_msg *msg,  pv_param_t *param, pv_value_t *res)
 				if (tv.ri==hf0->type)
 					n++;
 			} else {
-				if (cmp_hdrname_str(&hf0->name, &tv.rs)==0)
+				if(tv.rs.len==1 && tv.rs.s[0]=='*') {
 					n++;
+				} else if (cmp_hdrname_str(&hf0->name, &tv.rs)==0) {
+					n++;
+				}
 			}
 		}
 		idx = -idx;
@@ -2003,8 +2011,11 @@ int pv_get_hdr(struct sip_msg *msg,  pv_param_t *param, pv_value_t *res)
 				if (tv.ri==hf0->type)
 					n++;
 			} else {
-				if (cmp_hdrname_str(&hf0->name, &tv.rs)==0)
+				if(tv.rs.len==1 && tv.rs.s[0]=='*') {
 					n++;
+				} else if (cmp_hdrname_str(&hf0->name, &tv.rs)==0) {
+					n++;
+				}
 			}
 			if(n==idx)
 				break;
@@ -3114,6 +3125,14 @@ int pv_parse_hdr_name(pv_spec_p sp, str *in)
 		return 0;
 	}
 
+	if(in->len==1 && in->s[0]=='*') {
+		/* match any header name */
+		sp->pvp.pvn.type = PV_NAME_INTSTR;
+		sp->pvp.pvn.u.isname.type = AVP_NAME_STR;
+		sp->pvp.pvn.u.isname.name.s = *in;
+		return 0;
+	}
+
 	if(in->len>=pv_get_buffer_size()-1)
 	{
 		LM_ERR("name too long\n");
@@ -3440,16 +3459,22 @@ int pv_parse_msg_attrs_name(pv_spec_p sp, str *in)
 				sp->pvp.pvn.u.isname.name.n = 2;
 			else if(strncmp(in->s, "hdrs", 4)==0)
 				sp->pvp.pvn.u.isname.name.n = 3;
+			else if(strncmp(in->s, "hdrc", 4)==0)
+				sp->pvp.pvn.u.isname.name.n = 6;
 			else goto error;
 		break;
 		case 5:
 			if(strncmp(in->s, "fline", 5)==0)
 				sp->pvp.pvn.u.isname.name.n = 4;
+			else if(strncmp(in->s, "fpart", 5)==0)
+				sp->pvp.pvn.u.isname.name.n = 7;
 			else goto error;
 		break;
 		case 8:
 			if(strncmp(in->s, "body_len", 8)==0)
 				sp->pvp.pvn.u.isname.name.n = 5;
+			else if(strncmp(in->s, "hdrs_len", 8)==0)
+				sp->pvp.pvn.u.isname.name.n = 8;
 			else goto error;
 		break;
 		default:
@@ -3471,6 +3496,9 @@ error:
 int pv_get_msg_attrs(sip_msg_t *msg, pv_param_t *param, pv_value_t *res)
 {
 	str s;
+	hdr_field_t* hdr;
+	int n;
+
 	if(msg==NULL)
 		return pv_get_null(msg, param, res);
 
@@ -3516,6 +3544,78 @@ int pv_get_msg_attrs(sip_msg_t *msg, pv_param_t *param, pv_value_t *res)
 			if (s.s != NULL)
 				s.len = msg->buf + msg->len - s.s;
 			return pv_get_sintval(msg, param, res, s.len);
+		case 6: /* headers count */
+			n = 0;
+			for(hdr=msg->headers; hdr!=NULL; hdr=hdr->next) {
+				n++;
+			}
+			return pv_get_sintval(msg, param, res, n);
+		case 7: /* first part - first line + headers */
+			if(msg->unparsed==NULL)
+				return pv_get_null(msg, param, res);
+			s.s = msg->buf;
+			s.len = msg->unparsed - s.s;
+			trim(&s);
+			return pv_get_strval(msg, param, res, &s);
+		case 8: /* headers size */
+			if(msg->unparsed==NULL)
+				return pv_get_sintval(msg, param, res, 0);
+			s.s = msg->buf + msg->first_line.len;
+			s.len = msg->unparsed - s.s;
+			trim(&s);
+			return pv_get_sintval(msg, param, res, s.len);
+
+		default:
+			return pv_get_null(msg, param, res);
+	}
+}
+
+/**
+ *
+ */
+int pv_parse_ksr_attrs_name(pv_spec_p sp, str *in)
+{
+	if(sp==NULL || in==NULL || in->len<=0)
+		return -1;
+
+	switch(in->len) {
+		case 3:
+			if(strncmp(in->s, "ver", 3)==0)
+				sp->pvp.pvn.u.isname.name.n = 0;
+			else goto error;
+		break;
+		case 6:
+			if(strncmp(in->s, "verval", 6)==0)
+				sp->pvp.pvn.u.isname.name.n = 1;
+			else goto error;
+		break;
+		default:
+			goto error;
+	}
+	sp->pvp.pvn.type = PV_NAME_INTSTR;
+	sp->pvp.pvn.u.isname.type = 0;
+
+	return 0;
+
+error:
+	LM_ERR("unknown PV ksr key: %.*s\n", in->len, in->s);
+	return -1;
+}
+
+
+/**
+ *
+ */
+int pv_get_ksr_attrs(sip_msg_t *msg, pv_param_t *param, pv_value_t *res)
+{
+	if(param==NULL)
+		return pv_get_null(msg, param, res);
+
+	switch(param->pvn.u.isname.name.n) {
+		case 0: /* version */
+			return pv_get_strzval(msg, param, res, VERSION);
+		case 1: /* version value */
+			return pv_get_uintval(msg, param, res, VERSIONVAL);
 
 		default:
 			return pv_get_null(msg, param, res);
@@ -3555,6 +3655,29 @@ int pv_get_env(sip_msg_t *msg, pv_param_t *param, pv_value_t *res)
 		if (val) {
 			return pv_get_strzval(msg, param, res, val);
 		}
+	}
+	return pv_get_null(msg, param, res);
+}
+
+int pv_parse_def_name(pv_spec_p sp, str *in)
+{
+	if (in == NULL || in->s == NULL || sp == NULL) {
+		LM_ERR("INVALID DEF NAME\n");
+		return -1;
+	}
+	sp->pvp.pvn.type = PV_NAME_INTSTR;
+	sp->pvp.pvn.u.isname.type = AVP_NAME_STR;
+	sp->pvp.pvn.u.isname.name.s = *in;
+	return 0;
+
+}
+
+int pv_get_def(sip_msg_t *msg, pv_param_t *param, pv_value_t *res)
+{
+	str *val = pp_define_get(param->pvn.u.isname.name.s.len, param->pvn.u.isname.name.s.s);
+
+	if (val) {
+		return pv_get_strval(msg, param, res, val);
 	}
 	return pv_get_null(msg, param, res);
 }

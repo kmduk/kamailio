@@ -45,6 +45,11 @@ Daniel-Constantin Mierla
               4.17. sdp_content([sloppy])
               4.18. sdp_with_ice()
               4.19. sdp_get_line_startswith(avpvar, string)
+              4.20. sdp_get_address_family()
+
+        5. Exported Variables
+
+              5.1. $sdp( )
 
    List of Examples
 
@@ -67,6 +72,7 @@ Daniel-Constantin Mierla
    1.17. sdp_content usage
    1.18. sdp_with_ice usage
    1.19. sdp_get_line_startswith usage
+   1.20. sdp_get_address_familyusage
 
 Chapter 1. Admin Guide
 
@@ -100,6 +106,11 @@ Chapter 1. Admin Guide
         4.17. sdp_content([sloppy])
         4.18. sdp_with_ice()
         4.19. sdp_get_line_startswith(avpvar, string)
+        4.20. sdp_get_address_family()
+
+   5. Exported Variables
+
+        5.1. $sdp( )
 
 1. Overview
 
@@ -152,6 +163,7 @@ Chapter 1. Admin Guide
    4.17. sdp_content([sloppy])
    4.18. sdp_with_ice()
    4.19. sdp_get_line_startswith(avpvar, string)
+   4.20. sdp_get_address_family()
 
 4.1.  sdp_remove_codecs_by_id(list [, mtype])
 
@@ -492,3 +504,31 @@ if(sdp_get_line_startswith("$avp(mline)", "m=")) {
         xlog("m-line: $avp(mline)\n");
 }
 ...
+
+4.20.  sdp_get_address_family()
+
+   it helps to get IP address family at c line from sdp body. it returns
+   -1 on error , 4 for IP4 and 6 for IP6
+
+   Example 1.20. sdp_get_address_familyusage
+...
+if(is_method("INVITE") && has_body("application/sdp")){
+        $avp(af) = sdp_get_address_family();
+        xlog("L_INFO","ADDRESS FAMILY OF SDP C line $avp(af) ");
+}
+...
+
+5. Exported Variables
+
+   5.1. $sdp( )
+
+5.1. $sdp( )
+
+   Access to SDP attributes
+     * $sdp(body) - full SDP body (read only)
+     * $sdp(sess_version) - sess-version -attribute from SDP o= -line.
+       When set to special value -1, current value is incremented. (read +
+       write)
+
+   Exported pseudo-variables are also documented at
+   https://www.kamailio.org/wiki/

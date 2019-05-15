@@ -108,6 +108,7 @@ typedef int (*sr_kemi_fmssss_f)(sip_msg_t*, str*, str*, str*, str*);
 
 /* sip_msg_t and five int|str params */
 typedef int (*sr_kemi_fmsssss_f)(sip_msg_t*, str*, str*, str*, str*, str*);
+typedef int (*sr_kemi_fmssnns_f)(sip_msg_t*, str*, str*, int, int, str*);
 
 /* sip_msg_t and six int|str params */
 typedef int (*sr_kemi_fmssssss_f)(sip_msg_t*, str*, str*, str*, str*, str*, str*);
@@ -143,5 +144,10 @@ str *sr_kemi_param_map_get_name(int ptype);
 str *sr_kemi_param_map_get_params(int *ptypes);
 
 int sr_kemi_core_set_drop(sip_msg_t *msg);
+
+int sr_kemi_route(sr_kemi_eng_t *keng, sip_msg_t *msg, int rtype,
+		str *ename, str *edata);
+int sr_kemi_ctx_route(sr_kemi_eng_t *keng, run_act_ctx_t *ctx, sip_msg_t *msg,
+		int rtype, str *ename, str *edata);
 
 #endif

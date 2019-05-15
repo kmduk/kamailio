@@ -369,6 +369,7 @@ static inline isc_match* isc_new_match(ims_filter_criteria *fc, int index) {
 		if (!r->server_name.s) {
 			LM_ERR("isc_new_match(): error allocating %d bytes\n",
 					fc->application_server.server_name.len);
+			pkg_free(r);
 			return 0;
 		}
 		r->server_name.len = fc->application_server.server_name.len;
@@ -381,6 +382,10 @@ static inline isc_match* isc_new_match(ims_filter_criteria *fc, int index) {
 		if (!r->service_info.s) {
 			LM_ERR("isc_new_match(): error allocating %d bytes\n",
 					fc->application_server.service_info.len);
+			if (r->server_name.s) {
+				pkg_free(r->server_name.s);
+			}
+			pkg_free(r);
 			return 0;
 		}
 		r->service_info.len = fc->application_server.service_info.len;
@@ -388,6 +393,8 @@ static inline isc_match* isc_new_match(ims_filter_criteria *fc, int index) {
 				fc->application_server.service_info.len);
 	}
 	r->index = index;
+	r->include_register_request = fc->application_server.include_register_request;
+	r->include_register_response = fc->application_server.include_register_response;
 	return r;
 }
 

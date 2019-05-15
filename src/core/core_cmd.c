@@ -438,6 +438,28 @@ static void core_psx(rpc_t* rpc, void* c)
 	}
 }
 
+static const char* core_psa_doc[] = {
+	"Return all the attributes of running.",
+		/* Documentation string */
+	0	/* Method signature(s) */
+};
+
+
+static void core_psa(rpc_t* rpc, void* c)
+{
+	int p;
+	void *handle;
+
+	for (p=0; p<*process_count;p++) {
+		rpc->add(c, "{", &handle);
+		rpc->struct_add(handle, "dddds",
+				"index", p,
+				"pid", pt[p].pid,
+				"status", pt[p].status,
+				"rank", pt[p].rank,
+				"description", pt[p].desc);
+	}
+}
 
 static const char* core_pwd_doc[] = {
 	"Returns the working directory of server.",    /* Documentation string */
@@ -453,7 +475,7 @@ static void core_pwd(rpc_t* rpc, void* c)
 	max_len = pathmax();
 	cwd_buf = pkg_malloc(max_len);
 	if (!cwd_buf) {
-		ERR("core_pwd: No memory left\n");
+		PKG_MEM_ERROR;
 		rpc->fault(c, 500, "Server Ran Out of Memory");
 		return;
 	}
@@ -1058,6 +1080,7 @@ static rpc_export_t core_rpc_methods[] = {
 	{"core.uptime",            core_uptime,            core_uptime_doc,            0        },
 	{"core.ps",                core_ps,                core_ps_doc,                RET_ARRAY},
 	{"core.psx",               core_psx,               core_psx_doc,               RET_ARRAY},
+	{"core.psa",               core_psa,               core_psa_doc,               RET_ARRAY},
 	{"core.pwd",               core_pwd,               core_pwd_doc,               RET_ARRAY},
 	{"core.arg",               core_arg,               core_arg_doc,               RET_ARRAY},
 	{"core.kill",              core_kill,              core_kill_doc,              0        },
@@ -1067,7 +1090,7 @@ static rpc_export_t core_rpc_methods[] = {
 #endif
 	{"core.tcp_info",          core_tcpinfo,           core_tcpinfo_doc,    0},
 	{"core.tcp_options",       core_tcp_options,       core_tcp_options_doc,0},
-	{"core.tcp_list",          core_tcp_list,          core_tcp_list_doc,0},
+	{"core.tcp_list",          core_tcp_list,          core_tcp_list_doc, RET_ARRAY},
 	{"core.udp4_raw_info",     core_udp4rawinfo,       core_udp4rawinfo_doc,
 		0},
 	{"core.aliases_list",      core_aliases_list,      core_aliases_list_doc, 0},

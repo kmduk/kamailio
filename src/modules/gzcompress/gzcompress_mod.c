@@ -1,6 +1,4 @@
 /**
- * $Id$
- *
  * Copyright (C) 2013 Daniel-Constantin Mierla (asipto.com)
  *
  * This file is part of kamailio, a free SIP server.
@@ -81,18 +79,16 @@ static param_export_t params[]={
 
 /** module exports */
 struct module_exports exports= {
-	"gzcompress",
+	"gzcompress",    /* module name */
 	DEFAULT_DLFLAGS, /* dlopen flags */
-	0,
-	params,
-	0,          /* exported statistics */
-	0,          /* exported MI functions */
-	0,          /* exported pseudo-variables */
-	0,          /* extra processes */
-	mod_init,   /* module initialization function */
-	0,
-	0,
-	0           /* per-child init function */
+	0,               /* cmd (cfg function) exports */
+	params,          /* param exports */
+	0,               /* RPC method exports */
+	0,               /* pseudo-variables exports */
+	0,               /* response handling function */
+	mod_init,        /* module init function */
+	0,               /* per-child init function */
+	0                /* module destroy function */
 };
 
 /**
@@ -393,4 +389,3 @@ done:
 	free_sip_msg(&msg);
 	return 0;
 }
-

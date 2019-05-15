@@ -299,7 +299,7 @@ int do_action(struct run_act_ctx* h, struct action* a, struct sip_msg* msg)
 	struct dest_info dst;
 	char* tmp;
 	char *new_uri, *end, *crt;
-	sr31_cmd_export_t* cmd;
+	ksr_cmd_export_t* cmd;
 	int len;
 	int user;
 	struct sip_uri uri, next_hop;
@@ -752,7 +752,7 @@ int do_action(struct run_act_ctx* h, struct action* a, struct sip_msg* msg)
 					len=strlen(a->val[0].u.string);
 					msg->new_uri.s=pkg_malloc(len+1);
 					if (msg->new_uri.s==0){
-						LM_ERR("memory allocation failure\n");
+						PKG_MEM_ERROR;
 						ret=E_OUT_OF_MEM;
 						goto error;
 					}
@@ -802,7 +802,7 @@ int do_action(struct run_act_ctx* h, struct action* a, struct sip_msg* msg)
 
 				new_uri=pkg_malloc(MAX_URI_SIZE);
 				if (new_uri==0){
-					LM_ERR("memory allocation failure\n");
+					PKG_MEM_ERROR;
 					ret=E_OUT_OF_MEM;
 					goto error;
 				}
@@ -1527,8 +1527,9 @@ int run_actions(struct run_act_ctx* h, struct action* a, struct sip_msg* msg)
 {
 	struct action* t;
 	int ret;
-	struct sr_module *mod;
-	unsigned int ms = 0;
+	struct timeval tvb = {0}, tve = {0};
+	struct timezone tz;
+	unsigned int tdiff;
 
 	ret=E_UNSPEC;
 	h->rec_lev++;
@@ -1556,8 +1557,11 @@ int run_actions(struct run_act_ctx* h, struct action* a, struct sip_msg* msg)
 	}
 
 	for (t=a; t!=0; t=t->next){
-		if(unlikely(cfg_get(core, core_cfg, latency_limit_action)>0))
-			ms = TICKS_TO_MS(get_ticks_raw());
+
+		if(unlikely(cfg_get(core, core_cfg, latency_limit_action)>0)
+				&& is_printable(cfg_get(core, core_cfg, latency_log))) {
+			gettimeofday(&tvb, &tz);
+		}
 		_cfg_crt_action = t;
 		if(unlikely(log_prefix_mode==1)) {
 			log_prefix_set(msg);
@@ -1567,16 +1571,19 @@ int run_actions(struct run_act_ctx* h, struct action* a, struct sip_msg* msg)
 		if(unlikely(log_prefix_mode==1)) {
 			log_prefix_set(msg);
 		}
-		if(unlikely(cfg_get(core, core_cfg, latency_limit_action)>0)) {
-			ms = TICKS_TO_MS(get_ticks_raw()) - ms;
-			if(ms >= cfg_get(core, core_cfg, latency_limit_action)) {
+		if(unlikely(cfg_get(core, core_cfg, latency_limit_action)>0)
+				&& is_printable(cfg_get(core, core_cfg, latency_log))) {
+			gettimeofday(&tve, &tz);
+			tdiff = (tve.tv_sec - tvb.tv_sec) * 1000000
+					   + (tve.tv_usec - tvb.tv_usec);
+			if(tdiff >= cfg_get(core, core_cfg, latency_limit_action)) {
 				LOG(cfg_get(core, core_cfg, latency_log),
 						"alert - action [%s (%d)]"
-						" cfg [%s:%d] took too long [%u ms]\n",
+						" cfg [%s:%d] took too long [%u us]\n",
 						is_mod_func(t) ?
-							((cmd_export_common_t*)(t->val[0].u.data))->name
+							((cmd_export_t*)(t->val[0].u.data))->name
 							: "corefunc",
-						t->type, (t->cfile)?t->cfile:"", t->cline, ms);
+						t->type, (t->cfile)?t->cfile:"", t->cline, tdiff);
 			}
 		}
 		/* break, return or drop/exit stop execution of the current
@@ -1596,13 +1603,6 @@ int run_actions(struct run_act_ctx* h, struct action* a, struct sip_msg* msg)
 
 	h->rec_lev--;
 end:
-	/* process module onbreak handlers if present */
-	if (unlikely(h->rec_lev==0 && ret==0 &&
-					!(h->run_flags & IGNORE_ON_BREAK_R_F)))
-		for (mod=modules;mod;mod=mod->next)
-			if (unlikely(mod->exports.onbreak_f)) {
-				mod->exports.onbreak_f( msg );
-			}
 	return ret;
 
 
@@ -1624,7 +1624,7 @@ int run_actions_safe(struct run_act_ctx* h, struct action* a,
 	struct run_act_ctx ctx;
 	int ret;
 	int ign_on_break;
-	
+
 	/* start with a fresh action context */
 	init_run_actions_ctx(&ctx);
 	ctx.last_retcode = h->last_retcode;
@@ -1678,6 +1678,9 @@ int run_child_one_init_route(void)
 		rt = route_get(&event_rt, evname.s);
 	}
 	if((keng!=NULL) || (rt>=0 && event_rt.rlist[rt]!=NULL)) {
+		if (cfg_child_init()) {
+			return -1;
+		}
 		LM_DBG("executing event_route[%s] (%d)\n", evname.s, rt);
 		if(faked_msg_init()<0)
 			return -1;
@@ -1690,7 +1693,7 @@ int run_child_one_init_route(void)
 		} else {
 			bctx = sr_kemi_act_ctx_get();
 			sr_kemi_act_ctx_set(&ctx);
-			if(keng->froute(fmsg, EVENT_ROUTE,
+			if(sr_kemi_route(keng, fmsg, EVENT_ROUTE,
 						&kemi_event_route_callback, &evname)<0) {
 				LM_ERR("error running event route kemi callback\n");
 				return -1;

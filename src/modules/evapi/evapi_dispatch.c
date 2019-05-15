@@ -162,7 +162,7 @@ int evapi_run_cfg_route(evapi_env_t *evenv, int rt, str *rtname)
 	} else {
 		keng = sr_kemi_eng_get();
 		if(keng!=NULL) {
-			if(keng->froute(fmsg, EVENT_ROUTE,
+			if(sr_kemi_route(keng, fmsg, EVENT_ROUTE,
 						&_evapi_event_callback, rtname)<0) {
 				LM_ERR("error running event route kemi callback\n");
 			}
@@ -289,7 +289,7 @@ int evapi_dispatch_notify(evapi_msg_t *emsg)
 	n = 0;
 	for(i=0; i<EVAPI_MAX_CLIENTS; i++) {
 		if(_evapi_clients[i].connected==1 && _evapi_clients[i].sock>=0) {
-			if(emsg->tag.s==NULL || (emsg->tag.len = _evapi_clients[i].stag.len
+			if(emsg->tag.s==NULL || (emsg->tag.len == _evapi_clients[i].stag.len
 						&& strncmp(_evapi_clients[i].stag.s,
 									emsg->tag.s, emsg->tag.len)==0)) {
 				wlen = write(_evapi_clients[i].sock, emsg->data.s,

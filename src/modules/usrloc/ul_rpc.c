@@ -600,6 +600,7 @@ static void ul_rpc_add(rpc_t* rpc, void* ctx)
 	str aor = {0, 0};
 	str contact = {0, 0};
 	str path = {0, 0};
+	str received = {0, 0};
 	str socket = {0, 0};
 	str temp = {0, 0};
 	double dtemp;
@@ -612,7 +613,7 @@ static void ul_rpc_add(rpc_t* rpc, void* ctx)
 	memset(&ci, 0, sizeof(ucontact_info_t));
 
 	ret = rpc->scan(ctx, "SSSdfSddd*SS", &table, &aor, &contact, &ci.expires,
-			&dtemp, &path, &ci.flags, &ci.cflags, &ci.methods, &ci.received,
+			&dtemp, &path, &ci.flags, &ci.cflags, &ci.methods, &received,
 			&socket);
 	if (ret < 9) {
 		LM_ERR("not enough parameters - read so far: %d\n", ret);
@@ -626,9 +627,9 @@ static void ul_rpc_add(rpc_t* rpc, void* ctx)
 	}
 	if(ret>9) {
 		/* received parameter */
-		if(!ul_rpc_is_param_set(&ci.received)) {
-			ci.received.s = 0;
-			ci.received.len = 0;
+		if(ul_rpc_is_param_set(&received)) {
+			ci.received.s = received.s;
+			ci.received.len = received.len;
 		}
 	}
 	if(ret>10) {
@@ -659,12 +660,13 @@ static void ul_rpc_add(rpc_t* rpc, void* ctx)
 		return;
 	}
 
-	if(sruid_next(&_ul_sruid)<0)
+	if(sruid_next_safe(&_ul_sruid)<0)
 	{
 		rpc->fault(ctx, 500, "Can't obtain next uid");
 		return;
 	}
 	ci.ruid = _ul_sruid.uid;
+	ci.server_id = server_id;
 
 	lock_udomain(dom, &aor);
 
@@ -731,8 +733,8 @@ static void ul_rpc_db_users(rpc_t* rpc, void* ctx)
 	str table = {0, 0};
 	char query[QUERY_LEN];
 	str query_str;
-	db1_res_t* res;
-	int count;
+	db1_res_t* res = NULL;
+	int count = 0;
 
 	if (db_mode == NO_DB) {
 		rpc->fault(ctx, 500, "Command is not supported in db_mode=0");
@@ -765,12 +767,13 @@ static void ul_rpc_db_users(rpc_t* rpc, void* ctx)
 			domain_col.len, domain_col.s,
 			table.len, table.s);
 	query_str.s = query;
-	if (ul_dbf.raw_query(ul_dbh, &query_str, &res) < 0) {
+	if (ul_dbf.raw_query(ul_dbh, &query_str, &res) < 0 || res==NULL) {
 		rpc->fault(ctx, 500, "Failed to query AoR count");
 		return;
 	}
-
-	count = (int)VAL_INT(ROW_VALUES(RES_ROWS(res)));
+	if (RES_ROW_N(res) > 0) {
+		count = (int)VAL_INT(ROW_VALUES(RES_ROWS(res)));
+	}
 	ul_dbf.free_result(ul_dbh, res);
 
 	rpc->add(ctx, "d", count);
@@ -786,8 +789,8 @@ static void ul_rpc_db_contacts(rpc_t* rpc, void* ctx)
 	str table = {0, 0};
 	char query[QUERY_LEN];
 	str query_str;
-	db1_res_t* res;
-	int count;
+	db1_res_t* res = NULL;
+	int count = 0;
 
 	if (db_mode == NO_DB) {
 		rpc->fault(ctx, 500, "Command is not supported in db_mode=0");
@@ -817,12 +820,14 @@ static void ul_rpc_db_contacts(rpc_t* rpc, void* ctx)
 	query_str.len = snprintf(query, QUERY_LEN, "SELECT COUNT(*) FROM %.*s WHERE (UNIX_TIMESTAMP(expires) = 0) OR (expires > NOW())",
 			table.len, table.s);
 	query_str.s = query;
-	if (ul_dbf.raw_query(ul_dbh, &query_str, &res) < 0) {
+	if (ul_dbf.raw_query(ul_dbh, &query_str, &res) < 0 || res==NULL) {
 		rpc->fault(ctx, 500, "Failed to query contact count");
 		return;
 	}
 
-	count = (int)VAL_INT(ROW_VALUES(RES_ROWS(res)));
+	if (RES_ROW_N(res) > 0) {
+		count = (int)VAL_INT(ROW_VALUES(RES_ROWS(res)));
+	}
 	ul_dbf.free_result(ul_dbh, res);
 
 	rpc->add(ctx, "d", count);
@@ -838,8 +843,8 @@ static void ul_rpc_db_expired_contacts(rpc_t* rpc, void* ctx)
 	str table = {0, 0};
 	char query[QUERY_LEN];
 	str query_str;
-	db1_res_t* res;
-	int count;
+	db1_res_t* res = NULL;
+	int count = 0;
 
 	if (db_mode == NO_DB) {
 		rpc->fault(ctx, 500, "Command is not supported in db_mode=0");
@@ -869,12 +874,14 @@ static void ul_rpc_db_expired_contacts(rpc_t* rpc, void* ctx)
 	query_str.len = snprintf(query, QUERY_LEN, "SELECT COUNT(*) FROM %.*s WHERE (UNIX_TIMESTAMP(expires) > 0) AND (expires <= NOW())",
 			table.len, table.s);
 	query_str.s = query;
-	if (ul_dbf.raw_query(ul_dbh, &query_str, &res) < 0) {
+	if (ul_dbf.raw_query(ul_dbh, &query_str, &res) < 0 || res==NULL) {
 		rpc->fault(ctx, 500, "Failed to query contact count");
 		return;
 	}
 
-	count = (int)VAL_INT(ROW_VALUES(RES_ROWS(res)));
+	if (RES_ROW_N(res) > 0) {
+		count = (int)VAL_INT(ROW_VALUES(RES_ROWS(res)));
+	}
 	ul_dbf.free_result(ul_dbh, res);
 
 	rpc->add(ctx, "d", count);

@@ -20,8 +20,6 @@
  * Module: \ref core
  */
 
-#ifdef WITH_XAVP
-
 #include <stdio.h>
 #include <string.h>
 
@@ -92,8 +90,10 @@ static sr_xavp_t *xavp_new_value(str *name, sr_xval_t *val)
 	if(val->type == SR_XTYPE_STR)
 		size += val->v.s.len + 1;
 	avp = (sr_xavp_t*)shm_malloc(size);
-	if(avp==NULL)
+	if(avp==NULL) {
+		SHM_MEM_ERROR;
 		return NULL;
+	}
 	memset(avp, 0, size);
 	avp->id = id;
 	avp->name.s = (char*)avp + sizeof(sr_xavp_t);
@@ -445,6 +445,20 @@ int xavp_rm_by_index(str *name, int idx, sr_xavp_t **head)
 	return xavp_rm_internal(name, head, idx);
 }
 
+int xavp_rm_child_by_index(str *rname, str *cname, int idx)
+{
+	sr_xavp_t *avp=NULL;
+
+	if (idx<0) {
+		return 0;
+	}
+	avp = xavp_get(rname, NULL);
+
+	if(avp == NULL || avp->val.type!=SR_XTYPE_XAVP) {
+		return 0;
+	}
+	return xavp_rm_internal(cname, &avp->val.v.xavp, idx);
+}
 
 int xavp_count(str *name, sr_xavp_t **start)
 {
@@ -540,11 +554,11 @@ void xavp_print_list_content(sr_xavp_t **head, int level)
 		start = *head;
 	else
 		start=*_xavp_list_crt;
-	LM_INFO("+++++ start XAVP list: %p (level=%d)\n", start, level);
+	LM_INFO("+++++ start XAVP list: %p (%p) (level=%d)\n", start, head, level);
 	avp = start;
 	while(avp)
 	{
-		LM_INFO("     *** XAVP name: %s\n", avp->name.s);
+		LM_INFO("     *** (l:%d - %p) XAVP name: %s\n", level, avp, avp->name.s);
 		LM_INFO("     XAVP id: %u\n", avp->id);
 		LM_INFO("     XAVP value type: %d\n", avp->val.type);
 		switch(avp->val.type) {
@@ -552,20 +566,20 @@ void xavp_print_list_content(sr_xavp_t **head, int level)
 				LM_INFO("     XAVP value: <null>\n");
 			break;
 			case SR_XTYPE_INT:
-				LM_INFO("     XAVP value: %d\n", avp->val.v.i);
+				LM_INFO("     XAVP value (int): %d\n", avp->val.v.i);
 			break;
 			case SR_XTYPE_STR:
-				LM_INFO("     XAVP value: %s\n", avp->val.v.s.s);
+				LM_INFO("     XAVP value (str): %s\n", avp->val.v.s.s);
 			break;
 			case SR_XTYPE_TIME:
-				LM_INFO("     XAVP value: %lu\n",
+				LM_INFO("     XAVP value (time): %lu\n",
 						(long unsigned int)avp->val.v.t);
 			break;
 			case SR_XTYPE_LONG:
-				LM_INFO("     XAVP value: %ld\n", avp->val.v.l);
+				LM_INFO("     XAVP value (long): %ld\n", avp->val.v.l);
 			break;
 			case SR_XTYPE_LLONG:
-				LM_INFO("     XAVP value: %lld\n", avp->val.v.ll);
+				LM_INFO("     XAVP value (llong): %lld\n", avp->val.v.ll);
 			break;
 			case SR_XTYPE_XAVP:
 				LM_INFO("     XAVP value: <xavp:%p>\n", avp->val.v.xavp);
@@ -578,6 +592,7 @@ void xavp_print_list_content(sr_xavp_t **head, int level)
 				LM_INFO("     XAVP value: <data:%p>\n", avp->val.v.data);
 			break;
 		}
+		LM_INFO("     *** (l:%d - %p) end\n", level, avp);
 		avp = avp->next;
 	}
 	LM_INFO("----- end XAVP list: %p (level=%d)\n", start, level);
@@ -711,14 +726,11 @@ sr_xavp_t *xavp_clone_level_nodata(sr_xavp_t *xold)
 			if(navp==NULL)
 			{
 				LM_ERR("cannot create cloned embedded xavp\n");
-				if(xnew->val.v.xavp == NULL)
-				{
-					shm_free(xnew);
-					return NULL;
-				} else {
-					xavp_destroy_list(&navp);
-					return NULL;
+				if(xnew->val.v.xavp != NULL) {
+					xavp_destroy_list(&xnew->val.v.xavp);
 				}
+				shm_free(xnew);
+				return NULL;
 			}
 			LM_DBG("cloned inner xavp [%.*s]\n", oavp->name.len, oavp->name.s);
 			if(xnew->val.v.xavp == NULL)
@@ -896,6 +908,77 @@ sr_xavp_t* xavp_get_child_with_sval(str *rname, str *cname)
 	return vavp;
 }
 
+/**
+ * Set the value of the first xavp rname with first child xavp cname
+ * - replace if it exits; add if it doesn't exist
+ * - config operations:
+ *   $xavp(rxname=>cname) = xval;
+ *     or:
+ *   $xavp(rxname[0]=>cname[0]) = xval;
+ */
+int xavp_set_child_xval(str *rname, str *cname, sr_xval_t *xval)
+{
+	sr_xavp_t *ravp=NULL;
+	sr_xavp_t *cavp=NULL;
+
+	ravp = xavp_get(rname, NULL);
+	if(ravp) {
+		if(ravp->val.type != SR_XTYPE_XAVP) {
+			/* first root xavp does not have xavp list value - remove it */
+			xavp_rm(ravp, NULL);
+			/* add a new xavp in the root list with a child */
+			if(xavp_add_xavp_value(rname, cname, xval, NULL)==NULL) {
+				return -1;
+			}
+		} else {
+			/* first root xavp has an xavp list value */
+			cavp = xavp_get(cname, ravp->val.v.xavp);
+			if(cavp) {
+				/* child xavp with same name - remove it */
+				/* todo: update in place for int or if allocated size fits */
+				xavp_rm(cavp, &ravp->val.v.xavp);
+			}
+			if(xavp_add_value(cname, xval, &ravp->val.v.xavp)==NULL) {
+				return -1;
+			}
+		}
+	} else {
+		/* no xavp with rname in root list found */
+		if(xavp_add_xavp_value(rname, cname, xval, NULL)==NULL) {
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+/**
+ *
+ */
+int xavp_set_child_ival(str *rname, str *cname, int ival)
+{
+	sr_xval_t xval;
+
+	memset(&xval, 0, sizeof(sr_xval_t));
+	xval.type = SR_XTYPE_INT;
+	xval.v.i = ival;
+
+	return xavp_set_child_xval(rname, cname, &xval);
+}
+
+/**
+ *
+ */
+int xavp_set_child_sval(str *rname, str *cname, str *sval)
+{
+	sr_xval_t xval;
+
+	memset(&xval, 0, sizeof(sr_xval_t));
+	xval.type = SR_XTYPE_STR;
+	xval.v.s = *sval;
+
+	return xavp_set_child_xval(rname, cname, &xval);
+}
 
 /**
  * serialize the values in subfields of an xavp in name=value; format
@@ -956,4 +1039,3 @@ int xavp_serialize_fields(str *rname, char *obuf, int olen)
 	}
 	return rlen;
 }
-#endif

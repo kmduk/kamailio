@@ -44,11 +44,11 @@
 #include "script_cb.h"
 #include "nonsip_hooks.h"
 #include "dset.h"
+#include "fmsg.h"
 #include "usr_avp.h"
-#ifdef WITH_XAVP
 #include "xavp.h"
-#endif
 #include "select_buf.h"
+#include "locking.h"
 
 #include "tcp_server.h"  /* for tcpconn_add_alias */
 #include "tcp_options.h" /* for access to tcp_accept_aliases*/
@@ -78,7 +78,7 @@ int ksr_route_locks_set_init(void)
 		return 0;
 
 	ksr_route_locks_set = rec_lock_set_alloc(ksr_route_locks_size);
-	if(ksr_route_locks_set) {
+	if(ksr_route_locks_set==NULL) {
 		LM_ERR("failed to allocate route locks set\n");
 		return -1;
 	}
@@ -144,6 +144,80 @@ int sip_check_fline(char *buf, unsigned int len)
 	return -1;
 }
 
+/**
+ *
+ */
+static sr_net_info_t *ksr_evrt_rcvnetinfo = NULL;
+int ksr_evrt_received_mode = 0;
+str kemi_received_route_callback = STR_NULL;
+
+/**
+ *
+ */
+sr_net_info_t *ksr_evrt_rcvnetinfo_get(void)
+{
+	return ksr_evrt_rcvnetinfo;
+}
+
+/**
+ *
+ */
+int ksr_evrt_received(char *buf, unsigned int len, receive_info_t *rcv_info)
+{
+	sr_kemi_eng_t *keng = NULL;
+	sr_net_info_t netinfo;
+	int ret = 0;
+	int rt = -1;
+	run_act_ctx_t ra_ctx;
+	run_act_ctx_t *bctx = NULL;
+	sip_msg_t *fmsg = NULL;
+	str evname = str_init("core:msg-received");
+
+	if(len==0 || rcv_info==NULL || buf==NULL) {
+		LM_ERR("required parameters are not available\n");
+		return -1;
+	}
+
+	if(kemi_received_route_callback.len>0) {
+		keng = sr_kemi_eng_get();
+		if(keng == NULL) {
+			LM_DBG("kemi enabled with no core:msg-receive event route callback\n");
+			return 0;
+		}
+	} else {
+		rt = route_lookup(&event_rt, evname.s);
+		if (rt < 0 || event_rt.rlist[rt] == NULL) {
+			LM_DBG("event route core:msg-received not defined\n");
+			return 0;
+		}
+	}
+	memset(&netinfo, 0, sizeof(sr_net_info_t));
+	netinfo.data.s = buf;
+	netinfo.data.len = len;
+	netinfo.rcv = rcv_info;
+
+	ksr_evrt_rcvnetinfo = &netinfo;
+	set_route_type(REQUEST_ROUTE);
+	fmsg = faked_msg_get_next();
+	init_run_actions_ctx(&ra_ctx);
+	if(keng) {
+		bctx = sr_kemi_act_ctx_get();
+		sr_kemi_act_ctx_set(&ra_ctx);
+		ret=sr_kemi_route(keng, fmsg, REQUEST_ROUTE,
+				&kemi_received_route_callback, NULL);
+		sr_kemi_act_ctx_set(bctx);
+	} else {
+		ret=run_actions(&ra_ctx, event_rt.rlist[rt], fmsg);
+	}
+	if(ra_ctx.run_flags&DROP_R_F) {
+		LM_DBG("dropping received message\n");
+		ret = -1;
+	}
+	ksr_evrt_rcvnetinfo = NULL;
+
+	return ret;
+}
+
 /** Receive message
  *  WARNING: buf must be 0 terminated (buf[len]=0) or some things might
  * break (e.g.: modules/textops)
@@ -169,7 +243,15 @@ int receive_msg(char *buf, unsigned int len, struct receive_info *rcv_info)
 	sr_event_param_t evp = {0};
 	unsigned int cidlockidx = 0;
 	unsigned int cidlockset = 0;
+	int errsipmsg = 0;
+	int exectime = 0;
 
+	if(ksr_evrt_received_mode!=0) {
+		if(ksr_evrt_received(buf, len, rcv_info)<0) {
+			LM_DBG("dropping the received message\n");
+			goto error00;
+		}
+	}
 	if(sr_event_enabled(SREV_NET_DATA_RECV)) {
 		if(sip_check_fline(buf, len) == 0) {
 			memset(&netinfo, 0, sizeof(sr_net_info_t));
@@ -190,7 +272,7 @@ int receive_msg(char *buf, unsigned int len, struct receive_info *rcv_info)
 
 	msg = pkg_malloc(sizeof(struct sip_msg));
 	if(unlikely(msg == 0)) {
-		LM_ERR("no mem for sip_msg\n");
+		PKG_MEM_ERROR;
 		goto error00;
 	}
 	msg_no++;
@@ -201,7 +283,7 @@ int receive_msg(char *buf, unsigned int len, struct receive_info *rcv_info)
 	/* fill in msg */
 	msg->buf = buf;
 	msg->len = len;
-	/* zero termination (termination of orig message bellow not that
+	/* zero termination (termination of orig message below not that
 	 * useful as most of the work is done with scratch-pad; -jiri  */
 	/* buf[len]=0; */ /* WARNING: zero term removed! */
 	msg->rcv = *rcv_info;
@@ -214,15 +296,22 @@ int receive_msg(char *buf, unsigned int len, struct receive_info *rcv_info)
 		msg_set_time(msg);
 
 	if(parse_msg(buf, len, msg) != 0) {
+		errsipmsg = 1;
 		evp.data = (void *)msg;
 		if((ret = sr_event_exec(SREV_RCV_NOSIP, &evp)) < NONSIP_MSG_DROP) {
-			LOG(cfg_get(core, core_cfg, corelog),
-					"core parsing of SIP message failed (%s:%d/%d)\n",
-					ip_addr2a(&msg->rcv.src_ip), (int)msg->rcv.src_port,
-					(int)msg->rcv.proto);
-			sr_core_ert_run(msg, SR_CORE_ERT_RECEIVE_PARSE_ERROR);
-		} else if(ret == NONSIP_MSG_DROP)
+			LM_DBG("attempt of nonsip message processing failed\n");
+		} else if(ret == NONSIP_MSG_DROP) {
+			LM_DBG("nonsip message processing completed\n");
 			goto error02;
+		}
+	}
+	if(errsipmsg==1) {
+		LOG(cfg_get(core, core_cfg, corelog),
+				"core parsing of SIP message failed (%s:%d/%d)\n",
+				ip_addr2a(&msg->rcv.src_ip), (int)msg->rcv.src_port,
+				(int)msg->rcv.proto);
+		sr_core_ert_run(msg, SR_CORE_ERT_RECEIVE_PARSE_ERROR);
+		goto error02;
 	}
 
 	if(unlikely(parse_headers(msg, HDR_FROM_F | HDR_TO_F | HDR_CALLID_F | HDR_CSEQ_F, 0)
@@ -247,6 +336,12 @@ int receive_msg(char *buf, unsigned int len, struct receive_info *rcv_info)
 		cidlockidx = get_hash1_raw(msg->callid->body.s, msg->callid->body.len);
 		cidlockidx = cidlockidx % ksr_route_locks_set->size;
 		cidlockset = 1;
+	}
+
+
+	if(is_printable(cfg_get(core, core_cfg, latency_cfg_log))
+			|| stats_on == 1) {
+		exectime = 1;
 	}
 
 	if(msg->first_line.type == SIP_REQUEST) {
@@ -285,8 +380,7 @@ int receive_msg(char *buf, unsigned int len, struct receive_info *rcv_info)
 
 		/*	skip: */
 		LM_DBG("preparing to run routing scripts...\n");
-		if(is_printable(cfg_get(core, core_cfg, latency_cfg_log))
-				|| stats_on == 1) {
+		if(exectime) {
 			gettimeofday(&tvb, &tz);
 		}
 		/* execute pre-script callbacks, if any; -jiri */
@@ -306,16 +400,17 @@ int receive_msg(char *buf, unsigned int len, struct receive_info *rcv_info)
 		if(unlikely(main_rt.rlist[DEFAULT_RT] == NULL)) {
 			keng = sr_kemi_eng_get();
 			if(keng == NULL) {
-				LM_ERR("no config routing engine registered\n");
+				LM_ERR("no request_route {...} and no other config routing"
+						" engine registered\n");
 				goto error_req;
 			}
 			if(unlikely(cidlockset)) {
 				rec_lock_set_get(ksr_route_locks_set, cidlockidx);
-				if(keng->froute(msg, REQUEST_ROUTE, NULL, NULL) < 0)
+				if(sr_kemi_route(keng, msg, REQUEST_ROUTE, NULL, NULL) < 0)
 					LM_NOTICE("negative return code from engine function\n");
 				rec_lock_set_release(ksr_route_locks_set, cidlockidx);
 			} else {
-				if(keng->froute(msg, REQUEST_ROUTE, NULL, NULL) < 0)
+				if(sr_kemi_route(keng, msg, REQUEST_ROUTE, NULL, NULL) < 0)
 					LM_NOTICE("negative return code from engine function\n");
 			}
 		} else {
@@ -335,13 +430,15 @@ int receive_msg(char *buf, unsigned int len, struct receive_info *rcv_info)
 			}
 		}
 
-		if(is_printable(cfg_get(core, core_cfg, latency_cfg_log))
-				|| stats_on == 1) {
+		if(exectime) {
 			gettimeofday(&tve, &tz);
 			diff = (tve.tv_sec - tvb.tv_sec) * 1000000
 				   + (tve.tv_usec - tvb.tv_usec);
-			LOG(cfg_get(core, core_cfg, latency_cfg_log),
-					"request-route executed in: %d usec\n", diff);
+			if (cfg_get(core, core_cfg, latency_limit_cfg) == 0
+					|| cfg_get(core, core_cfg, latency_limit_cfg) <= diff) {
+				LOG(cfg_get(core, core_cfg, latency_cfg_log),
+						"request-route executed in: %d usec\n", diff);
+			}
 #ifdef STATS
 			stats->processed_requests++;
 			stats->acc_req_time += diff;
@@ -360,8 +457,7 @@ int receive_msg(char *buf, unsigned int len, struct receive_info *rcv_info)
 			goto error02;
 		}
 
-		if(is_printable(cfg_get(core, core_cfg, latency_cfg_log))
-				|| stats_on == 1) {
+		if(exectime) {
 			gettimeofday(&tvb, &tz);
 		}
 #ifdef STATS
@@ -393,10 +489,10 @@ int receive_msg(char *buf, unsigned int len, struct receive_info *rcv_info)
 				sr_kemi_act_ctx_set(&ctx);
 				if(unlikely(cidlockset)) {
 					rec_lock_set_get(ksr_route_locks_set, cidlockidx);
-					ret = keng->froute(msg, CORE_ONREPLY_ROUTE, NULL, NULL);
+					ret = sr_kemi_route(keng, msg, CORE_ONREPLY_ROUTE, NULL, NULL);
 					rec_lock_set_release(ksr_route_locks_set, cidlockidx);
 				} else {
-					ret = keng->froute(msg, CORE_ONREPLY_ROUTE, NULL, NULL);
+					ret = sr_kemi_route(keng, msg, CORE_ONREPLY_ROUTE, NULL, NULL);
 				}
 				sr_kemi_act_ctx_set(bctx);
 			} else {
@@ -414,21 +510,24 @@ int receive_msg(char *buf, unsigned int len, struct receive_info *rcv_info)
 				goto error_rpl;
 			} else
 #endif /* NO_ONREPLY_ROUTE_ERROR */
-					if(unlikely(ret == 0 || (ctx.run_flags & DROP_R_F))) {
-				STATS_RPL_FWD_DROP();
-				goto skip_send_reply; /* drop the message, no error */
-			}
+				if(unlikely(ret == 0 || (ctx.run_flags & DROP_R_F))) {
+					STATS_RPL_FWD_DROP();
+					LM_DBG("drop flag set - skip forwarding the reply\n");
+					goto skip_send_reply; /* drop the message, no error */
+				}
 		}
 		/* send the msg */
 		forward_reply(msg);
 	skip_send_reply:
-		if(is_printable(cfg_get(core, core_cfg, latency_cfg_log))
-				|| stats_on == 1) {
+		if(exectime) {
 			gettimeofday(&tve, &tz);
 			diff = (tve.tv_sec - tvb.tv_sec) * 1000000
 				   + (tve.tv_usec - tvb.tv_usec);
-			LOG(cfg_get(core, core_cfg, latency_cfg_log),
-					"reply-route executed in: %d usec\n", diff);
+			if (cfg_get(core, core_cfg, latency_limit_cfg) == 0
+					|| cfg_get(core, core_cfg, latency_limit_cfg) <= diff) {
+				LOG(cfg_get(core, core_cfg, latency_cfg_log),
+						"reply-route executed in: %d usec\n", diff);
+			}
 #ifdef STATS
 			stats->processed_responses++;
 			stats->acc_res_time += diff;
@@ -483,7 +582,5 @@ error00:
 void ksr_msg_env_reset(void)
 {
 	reset_avps();
-#ifdef WITH_XAVP
 	xavp_reset_list();
-#endif
 }

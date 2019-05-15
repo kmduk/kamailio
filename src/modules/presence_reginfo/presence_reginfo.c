@@ -16,8 +16,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License 
- * along with this program; if not, write to the Free Software 
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
@@ -47,21 +47,21 @@ static int mod_init(void);
 add_event_t pres_add_event;
 
 /* module exports */
+/* clang-format off */
 struct module_exports exports= {
     "presence_reginfo",	/* module name */
-    DEFAULT_DLFLAGS,	/* dlopen flags */
-    0,			/* exported functions */
-    0,			/* exported parameters */
-    0,			/* exported statistics */
-    0,			/* exported MI functions */
-    0,			/* exported pseudo-variables */
-    0,			/* extra processes */
-    mod_init,		/* module initialization function */
-    0,			/* response handling function */
-    0,			/* destroy function */
-    0			/* per-child init function */
+	DEFAULT_DLFLAGS,	/* dlopen flags */
+	0,					/* exported functions */
+	0,					/* exported parameters */
+	0,					/* RPC method exports */
+	0,					/* exported pseudo-variables */
+	0,					/* response handling function */
+	mod_init,			/* module initialization function */
+	0,					/* per-child init function */
+	0					/* module destroy function */
 };
-	
+/* clang-format on */
+
 /*
  * init module function
  */
@@ -87,8 +87,8 @@ static int mod_init(void)
 	}
 	if(reginfo_add_events() < 0) {
 		LM_ERR("failed to add reginfo-info events\n");
-		return -1;		
-	}	
-    
+		return -1;
+	}
+
 	return 0;
 }

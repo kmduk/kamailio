@@ -1,6 +1,4 @@
 /**
- * $Id$
- *
  * Copyright (C) 2010 Elena-Ramona Modroiu (asipto.com)
  *
  * This file is part of Kamailio, a free SIP server.
@@ -422,6 +420,44 @@ int pv_get_mqk(struct sip_msg *msg, pv_param_t *param,
 	if(mp==NULL || mp->item==NULL || mp->item->key.len<=0)
 		return pv_get_null(msg, param, res);
 	return pv_get_strval(msg, param, res, &mp->item->key);
+}
+
+/**
+ *
+ */
+str* get_mqk(str *in)
+{
+	mq_pv_t *mp = NULL;
+
+	if (mq_head_get(in) == NULL)
+	{
+		LM_ERR("mqueue not found: %.*s\n", in->len, in->s);
+		return NULL;
+	}
+
+	mp = mq_pv_get(in);
+	if(mp==NULL || mp->item==NULL || mp->item->key.len<=0)
+		return NULL;
+	return &mp->item->key;
+}
+
+/**
+ *
+ */
+str* get_mqv(str *in)
+{
+	mq_pv_t *mp = NULL;
+
+	if (mq_head_get(in) == NULL)
+	{
+		LM_ERR("mqueue not found: %.*s\n", in->len, in->s);
+		return NULL;
+	}
+
+	mp = mq_pv_get(in);
+	if(mp==NULL || mp->item==NULL || mp->item->val.len<=0)
+		return NULL;
+	return &mp->item->val;
 }
 
 /**

@@ -113,7 +113,7 @@
 		struct sr_yy_fname *next;
 	} *sr_yy_fname_list = 0;
 
-	static str  *pp_define_get(int len, const char * text);
+	str  *pp_define_get(int len, const char * text);
 	static int  pp_ifdef_type(int pos);
 	static void pp_ifdef_var(int len, const char * text);
 	static void pp_ifdef();
@@ -294,6 +294,7 @@ LOGPREFIXMODE	log_prefix_mode
 LOGENGINETYPE	log_engine_type
 LOGENGINEDATA	log_engine_data
 XAVPVIAPARAMS	xavp_via_params
+XAVPVIAFIELDS	xavp_via_fields
 LISTEN		listen
 ADVERTISE	advertise|ADVERTISE
 ALIAS		alias
@@ -308,6 +309,7 @@ DNS_TCP_PREF	dns_tcp_pref|dns_tcp_preference
 DNS_TLS_PREF	dns_tls_pref|dns_tls_preference
 DNS_SCTP_PREF	dns_sctp_pref|dns_sctp_preference
 DNS_RETR_TIME	dns_retr_time
+DNS_SLOW_QUERY_MS	dns_slow_query_ms
 DNS_RETR_NO		dns_retr_no
 DNS_SERVERS_NO	dns_servers_no
 DNS_USE_SEARCH	dns_use_search_list
@@ -327,6 +329,7 @@ DNS_CACHE_DEL_NONEXP	dns_cache_del_nonexp|dns_cache_delete_nonexpired
 DNS_CACHE_REC_PREF	dns_cache_rec_pref
 /* ipv6 auto bind */
 AUTO_BIND_IPV6		auto_bind_ipv6
+BIND_IPV6_LINK_LOCAL	bind_ipv6_link_local
 /* blacklist */
 DST_BLST_INIT	dst_blacklist_init
 USE_DST_BLST		use_dst_blacklist
@@ -348,6 +351,7 @@ CHILDREN children
 SOCKET_WORKERS socket_workers
 ASYNC_WORKERS async_workers
 ASYNC_USLEEP async_usleep
+ASYNC_NONBLOCK async_nonblock
 CHECK_VIA	check_via
 PHONE2TEL	phone2tel
 MEMLOG		"memlog"|"mem_log"
@@ -397,6 +401,7 @@ TCP_OPT_KEEPCNT		"tcp_keepcnt"
 TCP_OPT_CRLF_PING	"tcp_crlf_ping"
 TCP_OPT_ACCEPT_NO_CL	"tcp_accept_no_cl"
 TCP_OPT_ACCEPT_HEP3	"tcp_accept_hep3"
+TCP_OPT_ACCEPT_HAPROXY	"tcp_accept_haproxy"
 TCP_CLONE_RCVBUF	"tcp_clone_rcvbuf"
 TCP_REUSE_PORT		"tcp_reuse_port"
 DISABLE_TLS		"disable_tls"|"tls_disable"
@@ -451,6 +456,8 @@ KEMI     "kemi"
 ONSEND_ROUTE_CALLBACK	"onsend_route_callback"
 REPLY_ROUTE_CALLBACK	"reply_route_callback"
 EVENT_ROUTE_CALLBACK	"event_route_callback"
+RECEIVED_ROUTE_CALLBACK	"received_route_callback"
+RECEIVED_ROUTE_MODE		"received_route_mode"
 
 MAX_RECURSIVE_LEVEL		"max_recursive_level"
 MAX_BRANCHES_PARAM		"max_branches"
@@ -459,6 +466,7 @@ LATENCY_CFG_LOG			latency_cfg_log
 LATENCY_LOG				latency_log
 LATENCY_LIMIT_DB		latency_limit_db
 LATENCY_LIMIT_ACTION	latency_limit_action
+LATENCY_LIMIT_CFG		latency_limit_cfg
 
 MSG_TIME	msg_time
 ONSEND_RT_REPLY		"onsend_route_reply"
@@ -569,23 +577,23 @@ IMPORTFILE      "import_file"
 <INITIAL>{ISAVPFLAGSET}	{ count(); yylval.strval=yytext; return ISAVPFLAGSET; }
 <INITIAL>{AVPFLAGS_DECL}	{ count(); yylval.strval=yytext; return AVPFLAGS_DECL; }
 <INITIAL>{MSGLEN}	{ count(); yylval.strval=yytext; return MSGLEN; }
-<INITIAL>{ROUTE}	{ count(); routename=0; default_routename="DEFAULT_ROUTE";
+<INITIAL>{ROUTE}	{ count(); default_routename="DEFAULT_ROUTE";
 						yylval.strval=yytext; return ROUTE; }
-<INITIAL>{ROUTE_REQUEST}	{ count(); routename=0; default_routename="DEFAULT_ROUTE";
+<INITIAL>{ROUTE_REQUEST}	{ count(); default_routename="DEFAULT_ROUTE";
 								yylval.strval=yytext; return ROUTE_REQUEST; }
-<INITIAL>{ROUTE_ONREPLY}	{ count(); routename=0; default_routename="DEFAULT_ONREPLY";
+<INITIAL>{ROUTE_ONREPLY}	{ count(); default_routename="DEFAULT_ONREPLY";
 								yylval.strval=yytext;
 								return ROUTE_ONREPLY; }
-<INITIAL>{ROUTE_REPLY}	{ count(); routename=0; default_routename="DEFAULT_ONREPLY";
+<INITIAL>{ROUTE_REPLY}	{ count(); default_routename="DEFAULT_ONREPLY";
 							yylval.strval=yytext; return ROUTE_REPLY; }
-<INITIAL>{ROUTE_FAILURE}	{ count(); routename=0; default_routename="DEFAULT_FAILURE";
+<INITIAL>{ROUTE_FAILURE}	{ count(); default_routename="DEFAULT_FAILURE";
 								yylval.strval=yytext;
 								return ROUTE_FAILURE; }
-<INITIAL>{ROUTE_BRANCH} { count(); routename=0; default_routename="DEFAULT_BRANCH";
+<INITIAL>{ROUTE_BRANCH} { count(); default_routename="DEFAULT_BRANCH";
 							yylval.strval=yytext; return ROUTE_BRANCH; }
-<INITIAL>{ROUTE_SEND} { count(); routename=0; default_routename="DEFAULT_SEND";
+<INITIAL>{ROUTE_SEND} { count(); default_routename="DEFAULT_SEND";
 							yylval.strval=yytext; return ROUTE_SEND; }
-<INITIAL>{ROUTE_EVENT} { count(); routename=0; default_routename="DEFAULT_EVENT";
+<INITIAL>{ROUTE_EVENT} { count(); default_routename="DEFAULT_EVENT";
 							yylval.strval=yytext;
 							state=EVRT_NAME_S; BEGIN(EVRTNAME);
 							return ROUTE_EVENT; }
@@ -696,6 +704,7 @@ IMPORTFILE      "import_file"
 <INITIAL>{LOGENGINETYPE}	{ yylval.strval=yytext; return LOGENGINETYPE; }
 <INITIAL>{LOGENGINEDATA}	{ yylval.strval=yytext; return LOGENGINEDATA; }
 <INITIAL>{XAVPVIAPARAMS}	{ yylval.strval=yytext; return XAVPVIAPARAMS; }
+<INITIAL>{XAVPVIAFIELDS}	{ yylval.strval=yytext; return XAVPVIAFIELDS; }
 <INITIAL>{LISTEN}	{ count(); yylval.strval=yytext; return LISTEN; }
 <INITIAL>{ADVERTISE}	{ count(); yylval.strval=yytext; return ADVERTISE; }
 <INITIAL>{ALIAS}	{ count(); yylval.strval=yytext; return ALIAS; }
@@ -719,6 +728,8 @@ IMPORTFILE      "import_file"
 								return DNS_SCTP_PREF; }
 <INITIAL>{DNS_RETR_TIME}	{ count(); yylval.strval=yytext;
 								return DNS_RETR_TIME; }
+<INITIAL>{DNS_SLOW_QUERY_MS}	{ count(); yylval.strval=yytext;
+								return DNS_SLOW_QUERY_MS; }
 <INITIAL>{DNS_RETR_NO}	{ count(); yylval.strval=yytext;
 								return DNS_RETR_NO; }
 <INITIAL>{DNS_SERVERS_NO}	{ count(); yylval.strval=yytext;
@@ -753,6 +764,8 @@ IMPORTFILE      "import_file"
 								return DNS_CACHE_REC_PREF; }
 <INITIAL>{AUTO_BIND_IPV6}	{ count(); yylval.strval=yytext;
 								return AUTO_BIND_IPV6; }
+<INITIAL>{BIND_IPV6_LINK_LOCAL}	{ count(); yylval.strval=yytext;
+								return BIND_IPV6_LINK_LOCAL; }
 <INITIAL>{DST_BLST_INIT}	{ count(); yylval.strval=yytext;
 								return DST_BLST_INIT; }
 <INITIAL>{USE_DST_BLST}	{ count(); yylval.strval=yytext;
@@ -780,6 +793,7 @@ IMPORTFILE      "import_file"
 <INITIAL>{SOCKET_WORKERS}	{ count(); yylval.strval=yytext; return SOCKET_WORKERS; }
 <INITIAL>{ASYNC_WORKERS}	{ count(); yylval.strval=yytext; return ASYNC_WORKERS; }
 <INITIAL>{ASYNC_USLEEP}	{ count(); yylval.strval=yytext; return ASYNC_USLEEP; }
+<INITIAL>{ASYNC_NONBLOCK}	{ count(); yylval.strval=yytext; return ASYNC_NONBLOCK; }
 <INITIAL>{CHECK_VIA}	{ count(); yylval.strval=yytext; return CHECK_VIA; }
 <INITIAL>{PHONE2TEL}	{ count(); yylval.strval=yytext; return PHONE2TEL; }
 <INITIAL>{MEMLOG}	{ count(); yylval.strval=yytext; return MEMLOG; }
@@ -852,6 +866,8 @@ IMPORTFILE      "import_file"
 									return TCP_OPT_ACCEPT_NO_CL; }
 <INITIAL>{TCP_OPT_ACCEPT_HEP3}	{ count(); yylval.strval=yytext;
 									return TCP_OPT_ACCEPT_HEP3; }
+<INITIAL>{TCP_OPT_ACCEPT_HAPROXY}	{ count(); yylval.strval=yytext;
+									return TCP_OPT_ACCEPT_HAPROXY; }
 <INITIAL>{TCP_CLONE_RCVBUF}		{ count(); yylval.strval=yytext;
 									return TCP_CLONE_RCVBUF; }
 <INITIAL>{TCP_REUSE_PORT}	{ count(); yylval.strval=yytext; return TCP_REUSE_PORT; }
@@ -942,6 +958,8 @@ IMPORTFILE      "import_file"
 <INITIAL>{REPLY_ROUTE_CALLBACK}  { count(); yylval.strval=yytext; return REPLY_ROUTE_CALLBACK;}
 <INITIAL>{ONSEND_ROUTE_CALLBACK}  { count(); yylval.strval=yytext; return ONSEND_ROUTE_CALLBACK;}
 <INITIAL>{EVENT_ROUTE_CALLBACK}  { count(); yylval.strval=yytext; return EVENT_ROUTE_CALLBACK;}
+<INITIAL>{RECEIVED_ROUTE_CALLBACK}  { count(); yylval.strval=yytext; return RECEIVED_ROUTE_CALLBACK;}
+<INITIAL>{RECEIVED_ROUTE_MODE}  { count(); yylval.strval=yytext; return RECEIVED_ROUTE_MODE;}
 <INITIAL>{MAX_RECURSIVE_LEVEL}  { count(); yylval.strval=yytext; return MAX_RECURSIVE_LEVEL;}
 <INITIAL>{MAX_BRANCHES_PARAM}  { count(); yylval.strval=yytext; return MAX_BRANCHES_PARAM;}
 <INITIAL>{LATENCY_LOG}  { count(); yylval.strval=yytext; return LATENCY_LOG;}
@@ -950,6 +968,7 @@ IMPORTFILE      "import_file"
 <INITIAL>{ONSEND_RT_REPLY}	{ count(); yylval.strval=yytext; return ONSEND_RT_REPLY; }
 <INITIAL>{LATENCY_LIMIT_DB}  { count(); yylval.strval=yytext; return LATENCY_LIMIT_DB;}
 <INITIAL>{LATENCY_LIMIT_ACTION}  { count(); yylval.strval=yytext; return LATENCY_LIMIT_ACTION;}
+<INITIAL>{LATENCY_LIMIT_CFG}  { count(); yylval.strval=yytext; return LATENCY_LIMIT_CFG;}
 <INITIAL>{CFG_DESCRIPTION}	{ count(); yylval.strval=yytext; return CFG_DESCRIPTION; }
 <INITIAL>{LOADMODULE}	{ count(); yylval.strval=yytext; return LOADMODULE; }
 <INITIAL>{LOADPATH}		{ count(); yylval.strval=yytext; return LOADPATH; }
@@ -1426,8 +1445,7 @@ static char* addstr(struct str_buf* dst_b, char* src, int len)
 
 	return dst_b->s;
 error:
-	LM_CRIT("lex: memory allocation error\n");
-	LM_CRIT("lex: try to increase pkg size with -M parameter\n");
+	PKG_MEM_CRITICAL;
 	exit(-1);
 }
 
@@ -1595,7 +1613,7 @@ static int sr_push_yy_state(char *fin, int mode)
 		newf = (char*)pkg_malloc(x-tmpfiname+strlen(fbuf)+2);
 		if(newf==0)
 		{
-			LM_CRIT("no more pkg\n");
+			PKG_MEM_CRITICAL;
 			return -1;
 		}
 		newf[0] = '\0';
@@ -1657,7 +1675,7 @@ static int sr_push_yy_state(char *fin, int mode)
 		{
 			if(newf!=fbuf)
 				pkg_free(newf);
-			LM_CRIT("no more pkg\n");
+			PKG_MEM_CRITICAL;
 			return -1;
 		}
 		if(newf==fbuf)
@@ -1666,7 +1684,7 @@ static int sr_push_yy_state(char *fin, int mode)
 			if(fn->fname==0)
 			{
 				pkg_free(fn);
-				LM_CRIT("no more pkg!\n");
+				PKG_MEM_CRITICAL;
 				return -1;
 			}
 			strcpy(fn->fname, fbuf);
@@ -1703,7 +1721,7 @@ static int sr_pop_yy_state()
 
 /* define/ifdef support */
 
-#define MAX_DEFINES    256
+#define MAX_DEFINES    512
 static ksr_ppdefine_t pp_defines[MAX_DEFINES];
 static int pp_num_defines = 0;
 static int pp_define_type = 0;
@@ -1713,7 +1731,7 @@ static int pp_define_index = -1;
  * ifdef(defined), ifndef(undefined), or the opposite of these
  * two, but in an else branch
  */
-#define MAX_IFDEFS    256
+#define MAX_IFDEFS    512
 static int pp_ifdef_stack[MAX_IFDEFS];
 static int pp_sptr = 0; /* stack pointer */
 
@@ -1786,7 +1804,7 @@ int pp_define(int len, const char * text)
 	pp_defines[pp_num_defines].name.len = len;
 	pp_defines[pp_num_defines].name.s = (char*)pkg_malloc(len+1);
 	if(pp_defines[pp_num_defines].name.s==NULL) {
-		LM_CRIT("no more memory to define: %.*s\n", len, text);
+		PKG_MEM_CRITICAL;
 		return -1;
 	}
 	memcpy(pp_defines[pp_num_defines].name.s, text, len);
@@ -1850,7 +1868,7 @@ int pp_define_set(int len, char *text)
 	return 0;
 }
 
-static str *pp_define_get(int len, const char * text)
+str *pp_define_get(int len, const char * text)
 {
 	str var = {(char *)text, len};
 	int i;

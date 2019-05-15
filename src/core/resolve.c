@@ -51,12 +51,11 @@ struct dns_counters_h dns_cnts_h;
 counter_def_t dns_cnt_defs[] =  {
 	{&dns_cnts_h.failed_dns_req, "failed_dns_request", 0, 0, 0,
 		"incremented each time a DNS request has failed."},
+	{&dns_cnts_h.slow_dns_req, "slow_dns_request", 0, 0, 0,
+		"incremented each time a DNS request took longer than dns_slow_query_ms."},
 	{0, 0, 0, 0, 0, 0 }
 };
 
-/* mallocs for local stuff */
-#define local_malloc pkg_malloc
-#define local_free   pkg_free
 
 #ifdef USE_NAPTR
 static int naptr_proto_pref[PROTO_LAST+1];
@@ -305,9 +304,9 @@ struct srv_rdata* dns_srv_parser( unsigned char* msg, unsigned char* end,
 	if (len>255)
 		goto error;
 	/* alloc enought space for the struct + null terminated name */
-	srv=local_malloc(sizeof(struct srv_rdata)-1+len+1);
+	srv=pkg_malloc(sizeof(struct srv_rdata)-1+len+1);
 	if (srv==0){
-		LM_ERR("out of memory\n");
+		PKG_MEM_ERROR;
 		goto error;
 	}
 	srv->priority=ntohs(priority);
@@ -319,7 +318,7 @@ struct srv_rdata* dns_srv_parser( unsigned char* msg, unsigned char* end,
 	
 	return srv;
 error:
-	if (srv) local_free(srv);
+	if (srv) pkg_free(srv);
 	return 0;
 }
 
@@ -391,10 +390,10 @@ struct naptr_rdata* dns_naptr_parser( unsigned char* msg, unsigned char* end,
 	len=strlen(repl);
 	if (len>255)
 		goto error;
-	naptr=local_malloc(sizeof(struct naptr_rdata)+flags_len+services_len+
+	naptr=pkg_malloc(sizeof(struct naptr_rdata)+flags_len+services_len+
 						regexp_len+len+1-1);
 	if (naptr == 0){
-		LM_ERR("out of memory\n");
+		PKG_MEM_ERROR;
 		goto error;
 	}
 	naptr->order=ntohs(order);
@@ -416,7 +415,7 @@ struct naptr_rdata* dns_naptr_parser( unsigned char* msg, unsigned char* end,
 	
 	return naptr;
 error:
-	if (naptr) local_free(naptr);
+	if (naptr) pkg_free(naptr);
 	return 0;
 }
 
@@ -437,9 +436,9 @@ struct cname_rdata* dns_cname_parser( unsigned char* msg, unsigned char* end,
 	if (len>255)
 		goto error;
 	/* alloc sizeof struct + space for the null terminated name */
-	cname=local_malloc(sizeof(struct cname_rdata)-1+len+1);
+	cname=pkg_malloc(sizeof(struct cname_rdata)-1+len+1);
 	if(cname==0){
-		LM_ERR("out of memory\n");
+		PKG_MEM_ERROR;
 		goto error;
 	}
 	cname->name_len=len;
@@ -447,7 +446,7 @@ struct cname_rdata* dns_cname_parser( unsigned char* msg, unsigned char* end,
 	cname->name[cname->name_len]=0;
 	return cname;
 error:
-	if (cname) local_free(cname);
+	if (cname) pkg_free(cname);
 	return 0;
 }
 
@@ -461,9 +460,9 @@ struct a_rdata* dns_a_parser(unsigned char* rdata, unsigned char* eor)
 	struct a_rdata* a;
 	
 	if (rdata+4>eor) goto error;
-	a=(struct a_rdata*)local_malloc(sizeof(struct a_rdata));
+	a=(struct a_rdata*)pkg_malloc(sizeof(struct a_rdata));
 	if (a==0){
-		LM_ERR("out of memory\n");
+		PKG_MEM_ERROR;
 		goto error;
 	}
 	memcpy(a->ip, rdata, 4);
@@ -481,9 +480,9 @@ struct aaaa_rdata* dns_aaaa_parser(unsigned char* rdata, unsigned char* eor)
 	struct aaaa_rdata* aaaa;
 	
 	if (rdata+16>eor) goto error;
-	aaaa=(struct aaaa_rdata*)local_malloc(sizeof(struct aaaa_rdata));
+	aaaa=(struct aaaa_rdata*)pkg_malloc(sizeof(struct aaaa_rdata));
 	if (aaaa==0){
-		LM_ERR("out of memory\n");
+		PKG_MEM_ERROR;
 		goto error;
 	}
 	memcpy(aaaa->ip6, rdata, 16);
@@ -531,10 +530,10 @@ static struct txt_rdata* dns_txt_parser(unsigned char* msg, unsigned char* end,
 	}while(p<end);
 	/* alloc sizeof struct + space for the dns_cstr array + space for
 	   the strings */
-	txt=local_malloc(sizeof(struct txt_rdata) +(n-1)*sizeof(struct dns_cstr)+
+	txt=pkg_malloc(sizeof(struct txt_rdata) +(n-1)*sizeof(struct dns_cstr)+
 						str_size);
 	if(unlikely(txt==0)){
-		LM_ERR("out of memory\n");
+		PKG_MEM_ERROR;
 		goto error;
 	}
 	/* string table */
@@ -555,7 +554,7 @@ static struct txt_rdata* dns_txt_parser(unsigned char* msg, unsigned char* end,
 	}
 	return txt;
 error:
-	if (txt) local_free(txt);
+	if (txt) pkg_free(txt);
 	return 0;
 }
 
@@ -602,9 +601,9 @@ static struct ebl_rdata* dns_ebl_parser(unsigned char* msg, unsigned char* end,
 		goto error;
 	apex_len=strlen(apex);
 	/* alloc sizeof struct + space for the 2 null-terminated strings */
-	ebl=local_malloc(sizeof(struct ebl_rdata)-1+sep_len+1+apex_len+1);
+	ebl=pkg_malloc(sizeof(struct ebl_rdata)-1+sep_len+1+apex_len+1);
 	if (ebl==0){
-		LM_ERR("out of memory\n");
+		PKG_MEM_ERROR;
 		goto error;
 	}
 	ebl->position=rdata[0];
@@ -619,7 +618,7 @@ static struct ebl_rdata* dns_ebl_parser(unsigned char* msg, unsigned char* end,
 	
 	return ebl;
 error:
-	if (ebl) local_free(ebl);
+	if (ebl) pkg_free(ebl);
 	return 0;
 }
 
@@ -640,9 +639,9 @@ struct ptr_rdata* dns_ptr_parser( unsigned char* msg, unsigned char* end,
 	if (len>255)
 		goto error;
 	/* alloc sizeof struct + space for the null terminated name */
-	pname=local_malloc(sizeof(struct ptr_rdata)-1+len+1);
+	pname=pkg_malloc(sizeof(struct ptr_rdata)-1+len+1);
 	if(pname==0){
-		LM_ERR("out of memory\n");
+		PKG_MEM_ERROR;
 		goto error;
 	}
 	pname->ptrdname_len=len;
@@ -650,7 +649,7 @@ struct ptr_rdata* dns_ptr_parser( unsigned char* msg, unsigned char* end,
 	pname->ptrdname[pname->ptrdname_len]=0;
 	return pname;
 error:
-	if (pname) local_free(pname);
+	if (pname) pkg_free(pname);
 	return 0;
 }
 
@@ -665,8 +664,8 @@ void free_rdata_list(struct rdata* head)
 	while (l != 0) {
 		next_l = l->next;
 		/* free the parsed rdata*/
-		if (l->rdata) local_free(l->rdata);
-		local_free(l);
+		if (l->rdata) pkg_free(l->rdata);
+		pkg_free(l);
 		l = next_l;
 	}
 }
@@ -717,6 +716,8 @@ struct rdata* get_record(char* name, int type, int flags)
 	int name_len;
 	struct rdata* fullname_rd;
 	char c;
+	struct timeval start, stop;
+	int slow_query_ms = cfg_get(core, core_cfg, dns_slow_query_ms);
 
 	name_len=strlen(name);
 
@@ -738,7 +739,20 @@ struct rdata* get_record(char* name, int type, int flags)
 	}
 	fullname_rd=0;
 
+	if (slow_query_ms > 0)
+		gettimeofday(&start, NULL);
+
 	size=dns_func.sr_res_search(name, C_IN, type, buff.buff, sizeof(buff));
+
+	if (slow_query_ms > 0) {
+		gettimeofday(&stop, NULL);
+		int latency_ms = (stop.tv_sec - start.tv_sec)*1000
+                + (stop.tv_usec - start.tv_usec)/1000;
+		if (slow_query_ms < latency_ms) {
+			LOG(cfg_get(core, core_cfg, latency_log), "res_search[%d][%s]elapsed[%dms]\n", type, name, latency_ms);
+			counter_inc(dns_cnts_h.slow_dns_req);
+		}
+	}
 
 	if (unlikely(size<0)) {
 		LM_DBG("lookup(%s, %d) failed\n", name, type);
@@ -833,10 +847,10 @@ again:
 		}
 		/* expand the "type" record  (rdata)*/
 
-		rd=(struct rdata*) local_malloc(sizeof(struct rdata)+rec_name_len+
+		rd=(struct rdata*) pkg_malloc(sizeof(struct rdata)+rec_name_len+
 										1-1);
 		if (rd==0){
-			LM_ERR("out of memory\n");
+			PKG_MEM_ERROR;
 			goto error;
 		}
 		rd->type=rtype;
@@ -972,9 +986,9 @@ again:
 	 * (queried) to long name (answered)
 	 */
 	if ((search_list_used==1)&&(fullname_rd!=0)) {
-		rd=(struct rdata*) local_malloc(sizeof(struct rdata)+name_len+1-1);
+		rd=(struct rdata*) pkg_malloc(sizeof(struct rdata)+name_len+1-1);
 		if (unlikely(rd==0)){
-			LM_ERR("out of memory\n");
+			PKG_MEM_ERROR;
 			goto error;
 		}
 		rd->type=T_CNAME;
@@ -985,10 +999,10 @@ again:
 		rd->name[name_len]=0;
 		rd->name_len=name_len;
 		/* alloc sizeof struct + space for the null terminated name */
-		rd->rdata=(void*)local_malloc(sizeof(struct cname_rdata)-1+
+		rd->rdata=(void*)pkg_malloc(sizeof(struct cname_rdata)-1+
 										head->name_len+1);
 		if(unlikely(rd->rdata==0)){
-			LM_ERR("out of memory\n");
+			PKG_MEM_ERROR;
 			goto error_rd;
 		}
 		((struct cname_rdata*)(rd->rdata))->name_len=fullname_rd->name_len;
@@ -1009,7 +1023,7 @@ error_parse:
 				name, type,
 				p, end, rtype, class, ttl, rdlength);
 error_rd:
-		if (rd) local_free(rd); /* rd->rdata=0 & rd is not linked yet into
+		if (rd) pkg_free(rd); /* rd->rdata=0 & rd is not linked yet into
 								   the list */
 error:
 		LM_ERR("get_record\n");

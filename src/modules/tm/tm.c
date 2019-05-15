@@ -210,6 +210,7 @@ static int w_t_is_set(struct sip_msg* msg, char* target, char* bar);
 static int w_t_use_uac_headers(sip_msg_t* msg, char* foo, char* bar);
 static int w_t_uac_send(sip_msg_t* msg, char* pmethod, char* pruri,
 		char* pnexthop, char* psock, char *phdrs, char* pbody);
+static int w_t_get_status_code(sip_msg_t* msg, char *p1, char *p2);
 
 
 /* by default the fr timers avps are not set, so that the avps won't be
@@ -234,188 +235,190 @@ str tm_event_callback = STR_NULL;
 static int fixup_t_check_status(void** param, int param_no);
 
 static cmd_export_t cmds[]={
-	{"t_newtran",          w_t_newtran,             0, 0,
+	{"t_newtran",          w_t_newtran,             0, 0, 0,
 		REQUEST_ROUTE},
-	{"t_lookup_request",   w_t_check,               0, 0,
+	{"t_lookup_request",   w_t_check,               0, 0, 0,
 		REQUEST_ROUTE},
-	{"t_lookup_cancel",    w_t_lookup_cancel,       0, 0,
+	{"t_lookup_cancel",    w_t_lookup_cancel,       0, 0, 0,
 		REQUEST_ROUTE},
-	{"t_lookup_cancel",    w_t_lookup_cancel,       1, fixup_int_1,
+	{"t_lookup_cancel",    w_t_lookup_cancel,       1, fixup_int_1, 0,
 		REQUEST_ROUTE},
-	{"t_reply",              w_t_reply,             2, fixup_t_reply,
+	{"t_reply",              w_t_reply,             2, fixup_t_reply, 0,
 		REQUEST_ROUTE | ONREPLY_ROUTE | FAILURE_ROUTE },
-	{"t_send_reply",         w_t_send_reply,        2, fixup_t_reply,
+	{"t_send_reply",         w_t_send_reply,        2, fixup_t_reply, 0,
 		REQUEST_ROUTE | ONREPLY_ROUTE | FAILURE_ROUTE },
-	{"t_retransmit_reply", w_t_retransmit_reply,    0, 0,
+	{"t_retransmit_reply", w_t_retransmit_reply,    0, 0, 0,
 		REQUEST_ROUTE},
-	{"t_release",          w_t_release,             0, 0,
+	{"t_release",          w_t_release,             0, 0, 0,
 		REQUEST_ROUTE},
-	{"t_relay_to_udp",       w_t_relay_to_udp,        2, fixup_hostport2proxy,
+	{"t_relay_to_udp",       w_t_relay_to_udp,        2, fixup_hostport2proxy, 0,
 		REQUEST_ROUTE|FAILURE_ROUTE},
-	{"t_relay_to_udp",       w_t_relay_to_udp_uri,    0, 0,
+	{"t_relay_to_udp",       w_t_relay_to_udp_uri,    0, 0, 0,
 		REQUEST_ROUTE|FAILURE_ROUTE},
 #ifdef USE_TCP
-	{"t_relay_to_tcp",       w_t_relay_to_tcp,        2, fixup_hostport2proxy,
+	{"t_relay_to_tcp",       w_t_relay_to_tcp,        2, fixup_hostport2proxy, 0,
 		REQUEST_ROUTE|FAILURE_ROUTE},
-	{"t_relay_to_tcp",       w_t_relay_to_tcp_uri,    0, 0,
+	{"t_relay_to_tcp",       w_t_relay_to_tcp_uri,    0, 0, 0,
 		REQUEST_ROUTE|FAILURE_ROUTE},
 #endif
 #ifdef USE_TLS
-	{"t_relay_to_tls",       w_t_relay_to_tls,        2, fixup_hostport2proxy,
+	{"t_relay_to_tls",       w_t_relay_to_tls,        2, fixup_hostport2proxy, 0,
 		REQUEST_ROUTE|FAILURE_ROUTE},
-	{"t_relay_to_tls",       w_t_relay_to_tls_uri,    0, 0,
+	{"t_relay_to_tls",       w_t_relay_to_tls_uri,    0, 0, 0,
 		REQUEST_ROUTE|FAILURE_ROUTE},
 #endif
 #ifdef USE_SCTP
-	{"t_relay_to_sctp",       w_t_relay_to_sctp,       2, fixup_hostport2proxy,
+	{"t_relay_to_sctp",       w_t_relay_to_sctp,       2, fixup_hostport2proxy, 0,
 		REQUEST_ROUTE|FAILURE_ROUTE},
-	{"t_relay_to_sctp",       w_t_relay_to_sctp_uri,    0, 0,
+	{"t_relay_to_sctp",       w_t_relay_to_sctp_uri,    0, 0, 0,
 		REQUEST_ROUTE|FAILURE_ROUTE},
 #endif
-	{"t_replicate",        w_t_replicate_uri,       0, 0,
+	{"t_replicate",        w_t_replicate_uri,       0, 0, 0,
 		REQUEST_ROUTE},
-	{"t_replicate",        w_t_replicate_uri,       1, fixup_spve_null,
+	{"t_replicate",        w_t_replicate_uri,       1, fixup_spve_null, 0,
 		REQUEST_ROUTE},
-	{"t_replicate",        w_t_replicate,           2, fixup_hostport2proxy,
+	{"t_replicate",        w_t_replicate,           2, fixup_hostport2proxy, 0,
 		REQUEST_ROUTE},
-	{"t_replicate_udp",    w_t_replicate_udp,       2, fixup_hostport2proxy,
+	{"t_replicate_udp",    w_t_replicate_udp,       2, fixup_hostport2proxy, 0,
 		REQUEST_ROUTE},
 #ifdef USE_TCP
-	{"t_replicate_tcp",    w_t_replicate_tcp,       2, fixup_hostport2proxy,
+	{"t_replicate_tcp",    w_t_replicate_tcp,       2, fixup_hostport2proxy, 0,
 		REQUEST_ROUTE},
 #endif
 #ifdef USE_TLS
-	{"t_replicate_tls",    w_t_replicate_tls,       2, fixup_hostport2proxy,
+	{"t_replicate_tls",    w_t_replicate_tls,       2, fixup_hostport2proxy, 0,
 		REQUEST_ROUTE},
 #endif
 #ifdef USE_SCTP
-	{"t_replicate_sctp",    w_t_replicate_sctp,     2, fixup_hostport2proxy,
+	{"t_replicate_sctp",    w_t_replicate_sctp,     2, fixup_hostport2proxy, 0,
 		REQUEST_ROUTE},
 #endif
-	{"t_replicate_to", w_t_replicate_to,  		2, fixup_proto_hostport2proxy,
+	{"t_replicate_to", w_t_replicate_to,  		2, fixup_proto_hostport2proxy, 0,
 		REQUEST_ROUTE},
-	{"t_relay",              w_t_relay,               0, 0,
+	{"t_relay",              w_t_relay,               0, 0, 0,
 		REQUEST_ROUTE | FAILURE_ROUTE },
-	{"t_relay",              w_t_relay2,              2, fixup_hostport2proxy,
+	{"t_relay",              w_t_relay2,              2, fixup_hostport2proxy, 0,
 		REQUEST_ROUTE | FAILURE_ROUTE },
-	{"t_relay_to_avp", w_t_relay_to_avp,  		2, fixup_proto_hostport2proxy,
+	{"t_relay_to_avp", w_t_relay_to_avp,  		2, fixup_proto_hostport2proxy, 0,
 		REQUEST_ROUTE},
-	{"t_relay_to",			w_t_relay_to,           0, 0,
+	{"t_relay_to",			w_t_relay_to,           0, 0, 0,
 		REQUEST_ROUTE | FAILURE_ROUTE },
-	{"t_relay_to",			w_t_relay_to,           1, fixup_t_relay_to,
+	{"t_relay_to",			w_t_relay_to,           1, fixup_t_relay_to, 0,
 		REQUEST_ROUTE | FAILURE_ROUTE },
-	{"t_relay_to",			w_t_relay_to,           2, fixup_t_relay_to,
+	{"t_relay_to",			w_t_relay_to,           2, fixup_t_relay_to, 0,
 		REQUEST_ROUTE | FAILURE_ROUTE },
-	{"t_forward_nonack",     w_t_forward_nonack,      2, fixup_hostport2proxy,
+	{"t_forward_nonack",     w_t_forward_nonack,      2, fixup_hostport2proxy, 0,
 		REQUEST_ROUTE},
-	{"t_forward_nonack_uri", w_t_forward_nonack_uri,  0, 0,
+	{"t_forward_nonack_uri", w_t_forward_nonack_uri,  0, 0, 0,
 		REQUEST_ROUTE},
-	{"t_forward_nonack_udp", w_t_forward_nonack_udp,  2, fixup_hostport2proxy,
+	{"t_forward_nonack_udp", w_t_forward_nonack_udp,  2, fixup_hostport2proxy, 0,
 		REQUEST_ROUTE},
 #ifdef USE_TCP
-	{"t_forward_nonack_tcp", w_t_forward_nonack_tcp,  2, fixup_hostport2proxy,
+	{"t_forward_nonack_tcp", w_t_forward_nonack_tcp,  2, fixup_hostport2proxy, 0,
 		REQUEST_ROUTE},
 #endif
 #ifdef USE_TLS
-	{"t_forward_nonack_tls", w_t_forward_nonack_tls,  2, fixup_hostport2proxy,
+	{"t_forward_nonack_tls", w_t_forward_nonack_tls,  2, fixup_hostport2proxy, 0,
 		REQUEST_ROUTE},
 #endif
 #ifdef USE_SCTP
-	{"t_forward_nonack_sctp", w_t_forward_nonack_sctp, 2, fixup_hostport2proxy,
+	{"t_forward_nonack_sctp", w_t_forward_nonack_sctp, 2, fixup_hostport2proxy, 0,
 		REQUEST_ROUTE},
 #endif
-	{"t_forward_nonack_to", w_t_forward_nonack_to,  2, fixup_proto_hostport2proxy,
+	{"t_forward_nonack_to", w_t_forward_nonack_to,  2, fixup_proto_hostport2proxy, 0,
 		REQUEST_ROUTE},
-	{"t_relay_cancel",     w_t_relay_cancel,        0, 0,
+	{"t_relay_cancel",     w_t_relay_cancel,        0, 0, 0,
 		REQUEST_ROUTE},
-	{"t_on_failure",       w_t_on_failure,         1, fixup_on_failure,
+	{"t_on_failure",       w_t_on_failure,         1, fixup_on_failure, 0,
 		REQUEST_ROUTE | FAILURE_ROUTE | TM_ONREPLY_ROUTE | BRANCH_ROUTE },
-	{"t_on_branch_failure",w_t_on_branch_failure,  1, fixup_on_branch_failure,
+	{"t_on_branch_failure",w_t_on_branch_failure,  1, fixup_on_branch_failure, 0,
 		REQUEST_ROUTE | FAILURE_ROUTE | TM_ONREPLY_ROUTE | BRANCH_ROUTE },
-	{"t_on_reply",         w_t_on_reply,            1, fixup_on_reply,
+	{"t_on_reply",         w_t_on_reply,            1, fixup_on_reply, 0,
 		REQUEST_ROUTE | FAILURE_ROUTE | TM_ONREPLY_ROUTE | BRANCH_ROUTE },
-	{"t_on_branch",       w_t_on_branch,         1, fixup_on_branch,
+	{"t_on_branch",       w_t_on_branch,         1, fixup_on_branch, 0,
 		REQUEST_ROUTE | FAILURE_ROUTE },
-	{"t_check_status",     t_check_status,          1, fixup_t_check_status,
+	{"t_check_status",     t_check_status,          1, fixup_t_check_status, 0,
 		REQUEST_ROUTE | FAILURE_ROUTE | ONREPLY_ROUTE},
-	{"t_write_req",       t_write_req,              2, fixup_t_write,
+	{"t_write_req",       t_write_req,              2, fixup_t_write, 0,
 		REQUEST_ROUTE | FAILURE_ROUTE },
-	{"t_write_unix",      t_write_unix,             2, fixup_t_write,
+	{"t_write_unix",      t_write_unix,             2, fixup_t_write, 0,
 		REQUEST_ROUTE | FAILURE_ROUTE },
-	{"t_set_fr",          t_set_fr_inv,             1, fixup_var_int_1,
+	{"t_set_fr",          t_set_fr_inv,             1, fixup_var_int_1, 0,
 		REQUEST_ROUTE|TM_ONREPLY_ROUTE|FAILURE_ROUTE|BRANCH_ROUTE },
-	{"t_set_fr",          t_set_fr_all,             2, fixup_var_int_12,
+	{"t_set_fr",          t_set_fr_all,             2, fixup_var_int_12, 0,
 		REQUEST_ROUTE|TM_ONREPLY_ROUTE|FAILURE_ROUTE|BRANCH_ROUTE },
-	{"t_reset_fr",        w_t_reset_fr,             0, 0,
+	{"t_reset_fr",        w_t_reset_fr,             0, 0, 0,
 		REQUEST_ROUTE|TM_ONREPLY_ROUTE|FAILURE_ROUTE|BRANCH_ROUTE },
-	{"t_set_retr",        w_t_set_retr,               2, fixup_var_int_12,
+	{"t_set_retr",        w_t_set_retr,               2, fixup_var_int_12, 0,
 		REQUEST_ROUTE|TM_ONREPLY_ROUTE|FAILURE_ROUTE|BRANCH_ROUTE },
-	{"t_reset_retr",      w_t_reset_retr,           0, 0,
+	{"t_reset_retr",      w_t_reset_retr,           0, 0, 0,
 		REQUEST_ROUTE|TM_ONREPLY_ROUTE|FAILURE_ROUTE|BRANCH_ROUTE },
-	{"t_set_max_lifetime", w_t_set_max_lifetime,      2, fixup_var_int_12,
+	{"t_set_max_lifetime", w_t_set_max_lifetime,      2, fixup_var_int_12, 0,
 		REQUEST_ROUTE|TM_ONREPLY_ROUTE|FAILURE_ROUTE|BRANCH_ROUTE },
-	{"t_reset_max_lifetime", w_t_reset_max_lifetime, 0, 0,
+	{"t_reset_max_lifetime", w_t_reset_max_lifetime, 0, 0, 0,
 		REQUEST_ROUTE|TM_ONREPLY_ROUTE|FAILURE_ROUTE|BRANCH_ROUTE },
-	{"t_set_auto_inv_100", w_t_set_auto_inv_100,     1, fixup_var_int_1,
+	{"t_set_auto_inv_100", w_t_set_auto_inv_100,     1, fixup_var_int_1, 0,
 		REQUEST_ROUTE},
-	{"t_set_disable_6xx", w_t_set_disable_6xx,       1, fixup_var_int_1,
+	{"t_set_disable_6xx", w_t_set_disable_6xx,       1, fixup_var_int_1, 0,
 		REQUEST_ROUTE|TM_ONREPLY_ROUTE|FAILURE_ROUTE|BRANCH_ROUTE },
-	{"t_set_disable_failover", w_t_set_disable_failover, 1, fixup_var_int_1,
+	{"t_set_disable_failover", w_t_set_disable_failover, 1, fixup_var_int_1, 0,
 		REQUEST_ROUTE|TM_ONREPLY_ROUTE|FAILURE_ROUTE|BRANCH_ROUTE },
 #ifdef CANCEL_REASON_SUPPORT
 	{"t_set_no_e2e_cancel_reason", w_t_set_no_e2e_cancel_reason, 1,
-		fixup_var_int_1,
+		fixup_var_int_1, 0,
 		REQUEST_ROUTE|TM_ONREPLY_ROUTE|FAILURE_ROUTE|BRANCH_ROUTE },
 	/* alias for t_set_no_e2e_cancel_reason */
 	{"t_disable_e2e_cancel_reason", w_t_set_no_e2e_cancel_reason, 1,
-		fixup_var_int_1,
+		fixup_var_int_1, 0,
 		REQUEST_ROUTE|TM_ONREPLY_ROUTE|FAILURE_ROUTE|BRANCH_ROUTE },
 #endif /* CANCEL_REASON_SUPPORT */
 	{"t_set_disable_internal_reply", w_t_set_disable_internal_reply, 1,
-		fixup_var_int_1,
+		fixup_var_int_1, 0,
 		REQUEST_ROUTE|TM_ONREPLY_ROUTE|FAILURE_ROUTE|BRANCH_ROUTE },
-	{"t_branch_timeout",  w_t_branch_timeout,       0, 0,
+	{"t_branch_timeout",  w_t_branch_timeout,       0, 0, 0,
 		FAILURE_ROUTE|EVENT_ROUTE},
-	{"t_branch_replied",  w_t_branch_replied,       0, 0,
+	{"t_branch_replied",  w_t_branch_replied,       0, 0, 0,
 		FAILURE_ROUTE|EVENT_ROUTE},
-	{"t_any_timeout",     w_t_any_timeout,          0, 0,
+	{"t_any_timeout",     w_t_any_timeout,          0, 0, 0,
 		REQUEST_ROUTE|TM_ONREPLY_ROUTE|FAILURE_ROUTE|BRANCH_ROUTE },
-	{"t_any_replied",     w_t_any_replied,          0, 0,
+	{"t_any_replied",     w_t_any_replied,          0, 0, 0,
 		REQUEST_ROUTE|TM_ONREPLY_ROUTE|FAILURE_ROUTE|BRANCH_ROUTE },
-	{"t_is_canceled",     w_t_is_canceled,          0, 0,
+	{"t_is_canceled",     w_t_is_canceled,          0, 0, 0,
 		REQUEST_ROUTE|TM_ONREPLY_ROUTE|FAILURE_ROUTE|BRANCH_ROUTE },
-	{"t_is_retr_async_reply",     w_t_is_retr_async_reply,     0, 0,
+	{"t_is_retr_async_reply",     w_t_is_retr_async_reply,     0, 0, 0,
 		TM_ONREPLY_ROUTE},
-	{"t_is_expired",      w_t_is_expired,           0, 0,
+	{"t_is_expired",      w_t_is_expired,           0, 0, 0,
 		REQUEST_ROUTE|TM_ONREPLY_ROUTE|FAILURE_ROUTE|BRANCH_ROUTE },
-	{"t_grep_status",     w_t_grep_status,          1, fixup_var_int_1,
+	{"t_grep_status",     w_t_grep_status,          1, fixup_var_int_1, 0,
 		REQUEST_ROUTE|TM_ONREPLY_ROUTE|FAILURE_ROUTE|BRANCH_ROUTE },
-	{"t_drop_replies",    w_t_drop_replies,         0, 0,
+	{"t_drop_replies",    w_t_drop_replies,         0, 0, 0,
 		FAILURE_ROUTE},
-	{"t_drop_replies",    w_t_drop_replies,         1, 0,
+	{"t_drop_replies",    w_t_drop_replies,         1, 0, 0,
 		FAILURE_ROUTE},
-	{"t_save_lumps",      w_t_save_lumps,           0, 0,
+	{"t_save_lumps",      w_t_save_lumps,           0, 0, 0,
 		REQUEST_ROUTE},
-	{"t_check_trans",	  w_t_check_trans,			0, 0,
+	{"t_check_trans",	  w_t_check_trans,			0, 0, 0,
 		REQUEST_ROUTE|ONREPLY_ROUTE|BRANCH_ROUTE },
-	{"t_is_set",	      w_t_is_set,				1, fixup_t_is_set,
+	{"t_is_set",	      w_t_is_set,				1, fixup_t_is_set, 0,
 		ANY_ROUTE },
-	{"t_use_uac_headers",  w_t_use_uac_headers,		0, 0,
+	{"t_use_uac_headers",  w_t_use_uac_headers,		0, 0, 0,
 		ANY_ROUTE },
-	{"t_uac_send", (cmd_function)w_t_uac_send, 6, fixup_spve_all,
+	{"t_uac_send", (cmd_function)w_t_uac_send, 6, fixup_spve_all, 0,
 		ANY_ROUTE },
+	{"t_get_status_code", w_t_get_status_code,      0, 0, 0,
+		REQUEST_ROUTE|ONREPLY_ROUTE|FAILURE_ROUTE|BRANCH_ROUTE },
 
-	{"t_load_contacts", t_load_contacts,            0, 0,
+	{"t_load_contacts", t_load_contacts,            0, 0, 0,
 		REQUEST_ROUTE | FAILURE_ROUTE},
-	{"t_next_contacts", t_next_contacts,            0, 0,
+	{"t_next_contacts", t_next_contacts,            0, 0, 0,
 		REQUEST_ROUTE | FAILURE_ROUTE},
-	{"t_next_contact_flow", t_next_contact_flow,            0, 0,
+	{"t_next_contact_flow", t_next_contact_flow,            0, 0, 0,
 		REQUEST_ROUTE },
 
 	/* not applicable from the script */
-	{"load_tm",            (cmd_function)load_tm,           NO_SCRIPT,   0, 0},
-	{"load_xtm",           (cmd_function)load_xtm,          NO_SCRIPT,   0, 0},
-	{0,0,0,0,0}
+	{"load_tm",            (cmd_function)load_tm,           NO_SCRIPT,   0, 0, 0},
+	{"load_xtm",           (cmd_function)load_xtm,          NO_SCRIPT,   0, 0, 0},
+	{0,0,0,0,0,0}
 };
 
 
@@ -474,6 +477,8 @@ static param_export_t params[]={
 #endif /* CANCEL_REASON_SUPPORT */
 	{"xavp_contact",        PARAM_STR, &ulattrs_xavp_name                    },
 	{"event_callback",      PARAM_STR, &tm_event_callback                    },
+	{"relay_100",           PARAM_INT, &default_tm_cfg.relay_100             },
+	{"rich_redirect" ,      PARAM_INT, &tm_rich_redirect                     },
 	{0,0,0}
 };
 
@@ -482,18 +487,16 @@ struct module_exports tm_exports = {
 #else
 struct module_exports exports= {
 #endif
-	"tm",
-	/* -------- exported functions ----------- */
-	cmds,
-	tm_rpc,    /* RPC methods */
-	/* ------------ exported variables ---------- */
-	params,
-
-	mod_init, /* module initialization function */
-	(response_function) reply_received,
-	(destroy_function) tm_shutdown,
-	0, /* w_onbreak, */
-	child_init /* per-child init function */
+	"tm",               /* module name */
+	DEFAULT_DLFLAGS,    /* dlopen flags */
+	cmds,               /* cmd (cfg function) exports */
+	params,             /* param exports */
+	tm_rpc,             /* RPC method exports */
+	0,					/* pv exports */
+	reply_received,     /* response handling function */
+	mod_init,           /* module init function */
+	child_init,         /* per-child init function */
+	tm_shutdown			/* module destroy function */
 };
 
 
@@ -664,6 +667,9 @@ static int fixup_proto_hostport2proxy(void** param, int param_no) {
 static int fixup_t_check_status(void** param, int param_no)
 {
 	int ret;
+
+	ret = fix_param(FPARAM_PVS, param);
+	if (ret <= 0) return ret;
 
 	ret = fix_param(FPARAM_AVP, param);
 	if (ret <= 0) return ret;
@@ -851,6 +857,74 @@ static int child_init(int rank)
 
 
 /**************************** wrapper functions ***************************/
+
+static int ki_t_get_status_code(sip_msg_t* msg)
+{
+	int scode = -1;
+	int ret;
+	tm_cell_t *t = NULL;
+
+	/* first get the transaction */
+	if (t_check(msg, 0 ) == -1) return -1;
+	if ((t = get_t()) == 0) {
+		LM_ERR("cannot check status for a reply"
+				" which has no T-state established\n");
+		goto error;
+	}
+
+	switch(get_route_type()) {
+		case REQUEST_ROUTE:
+			/* use the status of the last sent reply */
+			scode = t->uas.status;
+			break;
+
+		case TM_ONREPLY_ROUTE:
+		case CORE_ONREPLY_ROUTE:
+			/* use the status of the current reply */
+			scode = (int)msg->first_line.u.reply.statuscode;
+			break;
+
+		case FAILURE_ROUTE:
+			/* use the status of the winning reply */
+			ret = t_pick_branch( -1, 0, t, &scode);
+			if (ret == -1) {
+				/* t_pick_branch() retuns error also when there are only
+				 * blind UACs. Let us give it another chance including the
+				 * blind branches. */
+				LM_DBG("t_pick_branch returned error,"
+						" trying t_pick_branch_blind\n");
+				ret = t_pick_branch_blind(t, &scode);
+			}
+			if (ret < 0) {
+				LM_CRIT("BUG: t_pick_branch failed to get"
+						" a final response in FAILURE_ROUTE\n");
+				goto error;
+			}
+			break;
+
+		case BRANCH_FAILURE_ROUTE:
+			scode = t->uac[get_t_branch()].last_received;
+			break;
+
+		default:
+			LM_ERR("unsupported route type %d\n",
+					get_route_type());
+			goto error;
+	}
+
+	LM_DBG("t status code is <%d>\n", scode);
+
+	return (scode!=0)?scode:-1;
+
+error:
+	return -1;
+}
+
+static int w_t_get_status_code(sip_msg_t* msg, char *p1, char *p2)
+{
+	return ki_t_get_status_code(msg);
+}
+
 static int t_check_status(struct sip_msg* msg, char *p1, char *foo)
 {
 	regmatch_t pmatch;
@@ -1325,6 +1399,10 @@ static int ki_t_reply(sip_msg_t* msg, int code, str* reason)
 	if (msg->REQ_METHOD==METHOD_ACK) {
 		LM_DBG("ACKs are not replied\n");
 		return -1;
+	}
+	if(msg->msg_flags & FL_MSG_NOREPLY) {
+		LM_INFO("message marked with no-reply flag\n");
+		return -2;
 	}
 
 	if (t_check( msg , 0 )==-1) return -1;
@@ -2786,6 +2864,71 @@ static int ki_t_relay(sip_msg_t *msg)
 /**
  *
  */
+static int ki_t_relay_to_proxy_flags(sip_msg_t *msg, str *sproxy, int rflags)
+{
+	proxy_l_t *proxy = NULL;
+	int ret = -1;
+	int proto;
+	str host;
+	int port;
+
+	if (sproxy != NULL && sproxy->s != NULL && sproxy->len > 0) {
+		if (parse_phostport(sproxy->s, &host.s, &host.len, &port, &proto)!=0) {
+			LM_CRIT("invalid proxy addr parameter <%s>\n", sproxy->s);
+			return E_UNSPEC;
+		}
+
+		proxy = mk_proxy(&host, port, proto);
+		if (proxy==0) {
+			LM_ERR("failed to build proxy structure for <%.*s>\n",
+				sproxy->len, sproxy->s );
+			return E_UNSPEC;
+		}
+	}
+	if(rflags!=0) {
+		/* no auto 100 trying */
+		if(rflags&1) {
+			t_set_auto_inv_100(msg, 0);
+		}
+		/* no auto negative reply */
+		if(rflags&2) {
+			t_set_disable_internal_reply(msg, 1);
+		}
+		/* no dns failover */
+		if(rflags&4) {
+			t_set_disable_failover(msg, 1);
+		}
+	}
+
+	ret = _w_t_relay_to(msg, proxy, PROTO_NONE);
+
+	if(proxy != NULL) {
+		free_proxy(proxy);
+		pkg_free(proxy);
+	}
+
+	return ret;
+}
+
+/**
+ *
+ */
+static int ki_t_relay_to_proxy(sip_msg_t *msg, str *sproxy)
+{
+	return ki_t_relay_to_proxy_flags(msg, sproxy, 0);
+}
+
+/**
+ *
+ */
+static int ki_t_relay_to_flags(sip_msg_t *msg, int rflags)
+{
+	return ki_t_relay_to_proxy_flags(msg, NULL, rflags);
+}
+
+/**
+ *
+ */
 static sr_kemi_t tm_kemi_exports[] = {
 	{ str_init("tm"), str_init("t_relay"),
 		SR_KEMIP_INT, ki_t_relay,
@@ -3012,7 +3155,26 @@ static sr_kemi_t tm_kemi_exports[] = {
 		{ SR_KEMIP_INT, SR_KEMIP_NONE, SR_KEMIP_NONE,
 			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
 	},
-
+	{ str_init("tm"), str_init("t_relay_to_proxy"),
+		SR_KEMIP_INT, ki_t_relay_to_proxy,
+		{ SR_KEMIP_STR, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init("tm"), str_init("t_relay_to_flags"),
+		SR_KEMIP_INT, ki_t_relay_to_flags,
+		{ SR_KEMIP_INT, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init("tm"), str_init("t_relay_to_proxy_flags"),
+		SR_KEMIP_INT, ki_t_relay_to_proxy_flags,
+		{ SR_KEMIP_STR, SR_KEMIP_INT, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init("tm"), str_init("t_get_status_code"),
+		SR_KEMIP_INT, ki_t_get_status_code,
+		{ SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
 
 	{ {0, 0}, {0, 0}, 0, NULL, { 0, 0, 0, 0, 0, 0 } }
 };

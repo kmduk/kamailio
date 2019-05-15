@@ -112,8 +112,8 @@ fi
 if [ -z "$DIR" ] ; then
 	DIR=`dirname $0`
 fi
-if [ -z "$OSERBIN" ] ; then
-	OSERBIN=$DIR/kamailio
+if [ -z "$KAMBIN" ] ; then
+	KAMBIN=$DIR/kamailio
 fi
 
 ##### ------------------------------------------------ #####
@@ -353,6 +353,11 @@ DIALPLAN_SUBST_EXP_COLUMN=subst_exp
 DIALPLAN_REPL_EXP_COLUMN=repl_exp
 DIALPLAN_ATTRS_COLUMN=attrs
 
+# ACC table
+if [ -z "$ACC_TABLE" ] ; then
+	ACC_TABLE=acc
+fi
+
 #
 ##### ------------------------------------------------ #####
 ### usage functions
@@ -552,6 +557,34 @@ EOF
 }
 USAGE_FUNCTIONS="$USAGE_FUNCTIONS usage_ksr_srv"
 
+usage_mtree() {
+	echo
+	mecho " -- command 'add|dump|reload|rm|show' - manage mtree"
+	echo
+cat <<EOF
+ mtree show <tname> .................. show db content
+ mtree dump [<tname>] ................ show cache content
+ mtree reload [<tname>] .............. reload db table into cache
+ mtree add <tname> <tprefix> <tvalue>
+             ......................... add a new entry
+ mtree rm <tname> <tprefix> .......... remove entries for given tname and tprefix
+EOF
+}
+USAGE_FUNCTIONS="$USAGE_FUNCTIONS usage_mtree"
+
+usage_acc() {
+	echo
+	mecho " -- command 'acc' - manage accounding records"
+	echo
+cat <<EOF
+ acc initdb .................. init acc table by adding extra colums
+ acc showdb .................. show content of acc table
+ recent [<secs>] ............. show most recent records in acc (default 300s)
+EOF
+}
+USAGE_FUNCTIONS="$USAGE_FUNCTIONS usage_acc"
+
+
 ##### ----------------------------------------------- #####
 #### Common functions
 
@@ -635,7 +668,7 @@ in SIP_DOMAIN"
 check_aor() {
 	echo "$1" | $EGREP "^$USERNAME_RE@.*\..*" >/dev/null
 	if [ $? -ne 0 ] ; then
-		echo "error: invalid AoR: $1" > /dev/stderr
+		echo "error: invalid AoR: $1" >&2
 		exit 1
 	fi
 }
@@ -654,7 +687,7 @@ is_aor() {
 check_sipaor() {
 	echo "$1" | $EGREP "^sip(s)?:$USERNAME_RE@.*\..*" >/dev/null
 	if [ $? -ne 0 ] ; then
-		echo "error: invalid SIP AoR: $1" > /dev/stderr
+		echo "error: invalid SIP AoR: $1" >&2
 		exit 1
 	fi
 }
@@ -665,7 +698,7 @@ check_sipaor() {
 check_uri() {
 	echo "$1" | $EGREP "^sip(s)?:($USERNAME_RE@)?.*\..*"  > /dev/null
 	if [ $? -ne 0 ] ; then
-		echo "error: invalid SIP URI: $1" > /dev/stderr
+		echo "error: invalid SIP URI: $1" >&2
 		exit 1
 	fi
 }
@@ -699,7 +732,7 @@ filter_json()
 	$AWK 'function ltrim(s) { sub(/^[ \t\r\n]+/, "", s); return s }
 		BEGIN { line=0; IGNORECASE=1; }
 		{ line++; }
-		NR == 1 && /^{.+"id"[ \t]*:[ \t]*[0-9]+[ \t]*}$/ { print; next; }
+		NR == 1 && /^[{].+"id"[ \t]*:[ \t]*[0-9]+[ \t]*}$/ { print; next; }
 		NR == 1 && /^200 OK/ { next; }
 		/^[ \t]*"jsonrpc":[ \t]*"2.0"/ { print; next; }
 		/^[ \t]*"result":[ \t]*\[.+/ {

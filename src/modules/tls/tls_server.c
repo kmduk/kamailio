@@ -1014,8 +1014,8 @@ int tls_read_f(struct tcp_connection* c, int* flags)
 	 * If it's != 0 is changed only on destroy. It's not possible to have
 	 * parallel reads.*/
 	tls_c = c->extra_data;
-	bytes_free = c->req.b_size - (int)(r->pos - r->buf);
-	if (unlikely(bytes_free == 0)) {
+	bytes_free = c->req.b_size - (unsigned int)(r->pos - r->buf);
+	if (unlikely(bytes_free <= 0)) {
 		ERR("Buffer overrun, dropping\n");
 		r->error = TCP_REQ_OVERRUN;
 		return -1;
@@ -1477,7 +1477,7 @@ int tls_run_event_routes(struct tcp_connection *c)
 	} else {
 		keng = sr_kemi_eng_get();
 		if(keng!=NULL) {
-			if(keng->froute(fmsg, EVENT_ROUTE,
+			if(sr_kemi_ctx_route(keng, &ctx, fmsg, EVENT_ROUTE,
 						&sr_tls_event_callback, &evname)<0) {
 				LM_ERR("error running event route kemi callback\n");
 				return -1;
