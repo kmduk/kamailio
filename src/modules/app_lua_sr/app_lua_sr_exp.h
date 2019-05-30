@@ -19,15 +19,14 @@
  *
  */
 
-#ifndef _APP_LUA_SR_H_
-#define _APP_LUA_SR_H_
+#ifndef _APP_LUA_SR_EXP_H_
+#define _APP_LUA_SR_EXP_H_
 
 #include <lua.h>
 
-void lua_sr_core_openlibs(lua_State *L);
-void lua_sr_kemi_register_libs(lua_State *L);
-
-int sr_kemi_lua_exec_func(lua_State* L, int eidx);
+int lua_sr_exp_register_mod(char *mname);
+int lua_sr_exp_init_mod(void);
+void lua_sr_exp_openlibs(lua_State *L);
 
 #endif
 

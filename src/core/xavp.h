@@ -33,7 +33,8 @@ typedef enum {
 	SR_XTYPE_LONG,    /* long value */
 	SR_XTYPE_LLONG,   /* long long value */
 	SR_XTYPE_XAVP,    /* xavp value */
-	SR_XTYPE_VPTR,    /* void pointer value */
+	SR_XTYPE_VPTR,    /* void pointer value (no free on destroy) */
+	SR_XTYPE_SPTR,    /* void pointer value (shm free on destroy) */
 	SR_XTYPE_DATA     /* custom data value */
 } sr_xtype_t;
 
@@ -56,7 +57,7 @@ typedef struct _sr_xval {
 		long l;
 		long long ll;
 		struct _sr_xavp *xavp; /* must be given in shm (not cloned) */
-		void *vptr;            /* void pointer - address copied, not freed */
+		void *vptr;            /* void pointer - see SR_XTYPE_VPTR, SR_XTYPE_SPTR */
 		sr_data_t *data;       /* must be given in shm (not cloned) */
 	} v;
 } sr_xval_t;

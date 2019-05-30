@@ -1357,9 +1357,37 @@ int sr_kemi_sqlang_exec_func_ex(HSQUIRRELVM J, sr_kemi_t *ket)
 			} else if(ket->ptypes[0]==SR_KEMIP_STR
 					&& ket->ptypes[1]==SR_KEMIP_STR
 					&& ket->ptypes[2]==SR_KEMIP_INT
+					&& ket->ptypes[3]==SR_KEMIP_STR) {
+				ret = ((sr_kemi_fmssns_f)(ket->func))(env_J->msg,
+						&vps[0].s, &vps[1].s, vps[2].n, &vps[3].s);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_STR
+					&& ket->ptypes[1]==SR_KEMIP_STR
+					&& ket->ptypes[2]==SR_KEMIP_INT
 					&& ket->ptypes[3]==SR_KEMIP_INT) {
 				ret = ((sr_kemi_fmssnn_f)(ket->func))(env_J->msg,
 						&vps[0].s, &vps[1].s, vps[2].n, vps[3].n);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_STR
+					&& ket->ptypes[1]==SR_KEMIP_INT
+					&& ket->ptypes[2]==SR_KEMIP_STR
+					&& ket->ptypes[3]==SR_KEMIP_STR) {
+				ret = ((sr_kemi_fmsnss_f)(ket->func))(env_J->msg,
+						&vps[0].s, vps[1].n, &vps[2].s, &vps[3].s);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_STR
+					&& ket->ptypes[1]==SR_KEMIP_INT
+					&& ket->ptypes[2]==SR_KEMIP_STR
+					&& ket->ptypes[3]==SR_KEMIP_INT) {
+				ret = ((sr_kemi_fmsnsn_f)(ket->func))(env_J->msg,
+						&vps[0].s, vps[1].n, &vps[2].s, vps[3].n);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_STR
+					&& ket->ptypes[1]==SR_KEMIP_INT
+					&& ket->ptypes[2]==SR_KEMIP_INT
+					&& ket->ptypes[3]==SR_KEMIP_STR) {
+				ret = ((sr_kemi_fmsnns_f)(ket->func))(env_J->msg,
+						&vps[0].s, vps[1].n, vps[2].n, &vps[3].s);
 				return sr_kemi_sqlang_return_int(J, ket, ret);
 			} else if(ket->ptypes[0]==SR_KEMIP_STR
 					&& ket->ptypes[1]==SR_KEMIP_INT
@@ -1376,11 +1404,39 @@ int sr_kemi_sqlang_exec_func_ex(HSQUIRRELVM J, sr_kemi_t *ket)
 						vps[0].n, &vps[1].s, &vps[2].s, &vps[3].s);
 				return sr_kemi_sqlang_return_int(J, ket, ret);
 			} else if(ket->ptypes[0]==SR_KEMIP_INT
+					&& ket->ptypes[1]==SR_KEMIP_STR
+					&& ket->ptypes[2]==SR_KEMIP_STR
+					&& ket->ptypes[3]==SR_KEMIP_INT) {
+				ret = ((sr_kemi_fmnssn_f)(ket->func))(env_J->msg,
+						vps[0].n, &vps[1].s, &vps[2].s, vps[3].n);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_INT
+					&& ket->ptypes[1]==SR_KEMIP_STR
+					&& ket->ptypes[2]==SR_KEMIP_INT
+					&& ket->ptypes[3]==SR_KEMIP_STR) {
+				ret = ((sr_kemi_fmnsns_f)(ket->func))(env_J->msg,
+						vps[0].n, &vps[1].s, vps[2].n, &vps[3].s);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_INT
+					&& ket->ptypes[1]==SR_KEMIP_STR
+					&& ket->ptypes[2]==SR_KEMIP_INT
+					&& ket->ptypes[3]==SR_KEMIP_INT) {
+				ret = ((sr_kemi_fmnsnn_f)(ket->func))(env_J->msg,
+						vps[0].n, &vps[1].s, vps[2].n, vps[3].n);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_INT
 					&& ket->ptypes[1]==SR_KEMIP_INT
 					&& ket->ptypes[2]==SR_KEMIP_STR
 					&& ket->ptypes[3]==SR_KEMIP_STR) {
 				ret = ((sr_kemi_fmnnss_f)(ket->func))(env_J->msg,
 						vps[0].n, vps[1].n, &vps[2].s, &vps[3].s);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_INT
+					&& ket->ptypes[1]==SR_KEMIP_INT
+					&& ket->ptypes[2]==SR_KEMIP_STR
+					&& ket->ptypes[3]==SR_KEMIP_INT) {
+				ret = ((sr_kemi_fmnnsn_f)(ket->func))(env_J->msg,
+						vps[0].n, vps[1].n, &vps[2].s, vps[3].n);
 				return sr_kemi_sqlang_return_int(J, ket, ret);
 			} else if(ket->ptypes[0]==SR_KEMIP_INT
 					&& ket->ptypes[1]==SR_KEMIP_INT
@@ -1397,8 +1453,7 @@ int sr_kemi_sqlang_exec_func_ex(HSQUIRRELVM J, sr_kemi_t *ket)
 						vps[0].n, vps[1].n, vps[2].n, vps[3].n);
 				return sr_kemi_sqlang_return_int(J, ket, ret);
 			} else {
-				LM_ERR("invalid parameters for: %.*s\n",
-						fname->len, fname->s);
+				LM_ERR("invalid parameters for: %.*s\n", fname->len, fname->s);
 				return app_sqlang_return_false(J);
 			}
 		break;
@@ -1409,8 +1464,47 @@ int sr_kemi_sqlang_exec_func_ex(HSQUIRRELVM J, sr_kemi_t *ket)
 					&& ket->ptypes[3]==SR_KEMIP_STR
 					&& ket->ptypes[4]==SR_KEMIP_STR) {
 				ret = ((sr_kemi_fmsssss_f)(ket->func))(env_J->msg,
-						&vps[0].s, &vps[1].s, &vps[2].s, &vps[3].s,
-						&vps[4].s);
+						&vps[0].s, &vps[1].s, &vps[2].s, &vps[3].s, &vps[4].s);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_STR
+					&& ket->ptypes[1]==SR_KEMIP_STR
+					&& ket->ptypes[2]==SR_KEMIP_STR
+					&& ket->ptypes[3]==SR_KEMIP_STR
+					&& ket->ptypes[4]==SR_KEMIP_INT) {
+				ret = ((sr_kemi_fmssssn_f)(ket->func))(env_J->msg,
+						&vps[0].s, &vps[1].s, &vps[2].s, &vps[3].s, vps[4].n);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_STR
+					&& ket->ptypes[1]==SR_KEMIP_STR
+					&& ket->ptypes[2]==SR_KEMIP_STR
+					&& ket->ptypes[3]==SR_KEMIP_INT
+					&& ket->ptypes[4]==SR_KEMIP_STR) {
+				ret = ((sr_kemi_fmsssns_f)(ket->func))(env_J->msg,
+						&vps[0].s, &vps[1].s, &vps[2].s, vps[3].n, &vps[4].s);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_STR
+					&& ket->ptypes[1]==SR_KEMIP_STR
+					&& ket->ptypes[2]==SR_KEMIP_STR
+					&& ket->ptypes[3]==SR_KEMIP_INT
+					&& ket->ptypes[4]==SR_KEMIP_INT) {
+				ret = ((sr_kemi_fmsssnn_f)(ket->func))(env_J->msg,
+						&vps[0].s, &vps[1].s, &vps[2].s, vps[3].n, vps[4].n);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_STR
+					&& ket->ptypes[1]==SR_KEMIP_STR
+					&& ket->ptypes[2]==SR_KEMIP_INT
+					&& ket->ptypes[3]==SR_KEMIP_STR
+					&& ket->ptypes[4]==SR_KEMIP_STR) {
+				ret = ((sr_kemi_fmssnss_f)(ket->func))(env_J->msg,
+						&vps[0].s, &vps[1].s, vps[2].n, &vps[3].s, &vps[4].s);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_STR
+					&& ket->ptypes[1]==SR_KEMIP_STR
+					&& ket->ptypes[2]==SR_KEMIP_INT
+					&& ket->ptypes[3]==SR_KEMIP_STR
+					&& ket->ptypes[4]==SR_KEMIP_INT) {
+				ret = ((sr_kemi_fmssnsn_f)(ket->func))(env_J->msg,
+						&vps[0].s, &vps[1].s, vps[2].n, &vps[3].s, vps[4].n);
 				return sr_kemi_sqlang_return_int(J, ket, ret);
 			} else if(ket->ptypes[0]==SR_KEMIP_STR
 					&& ket->ptypes[1]==SR_KEMIP_STR
@@ -1418,12 +1512,210 @@ int sr_kemi_sqlang_exec_func_ex(HSQUIRRELVM J, sr_kemi_t *ket)
 					&& ket->ptypes[3]==SR_KEMIP_INT
 					&& ket->ptypes[4]==SR_KEMIP_STR) {
 				ret = ((sr_kemi_fmssnns_f)(ket->func))(env_J->msg,
-						&vps[0].s, &vps[1].s, vps[2].n, vps[3].n,
-						&vps[4].s);
+						&vps[0].s, &vps[1].s, vps[2].n, vps[3].n, &vps[4].s);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_STR
+					&& ket->ptypes[1]==SR_KEMIP_STR
+					&& ket->ptypes[2]==SR_KEMIP_INT
+					&& ket->ptypes[3]==SR_KEMIP_INT
+					&& ket->ptypes[4]==SR_KEMIP_INT) {
+				ret = ((sr_kemi_fmssnnn_f)(ket->func))(env_J->msg,
+						&vps[0].s, &vps[1].s, vps[2].n, vps[3].n, vps[4].n);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_STR
+					&& ket->ptypes[1]==SR_KEMIP_INT
+					&& ket->ptypes[2]==SR_KEMIP_STR
+					&& ket->ptypes[3]==SR_KEMIP_STR
+					&& ket->ptypes[4]==SR_KEMIP_STR) {
+				ret = ((sr_kemi_fmsnsss_f)(ket->func))(env_J->msg,
+						&vps[0].s, vps[1].n, &vps[2].s, &vps[3].s, &vps[4].s);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_STR
+					&& ket->ptypes[1]==SR_KEMIP_INT
+					&& ket->ptypes[2]==SR_KEMIP_STR
+					&& ket->ptypes[3]==SR_KEMIP_STR
+					&& ket->ptypes[4]==SR_KEMIP_INT) {
+				ret = ((sr_kemi_fmsnssn_f)(ket->func))(env_J->msg,
+						&vps[0].s, vps[1].n, &vps[2].s, &vps[3].s, vps[4].n);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_STR
+					&& ket->ptypes[1]==SR_KEMIP_INT
+					&& ket->ptypes[2]==SR_KEMIP_STR
+					&& ket->ptypes[3]==SR_KEMIP_INT
+					&& ket->ptypes[4]==SR_KEMIP_STR) {
+				ret = ((sr_kemi_fmsnsns_f)(ket->func))(env_J->msg,
+						&vps[0].s, vps[1].n, &vps[2].s, vps[3].n, &vps[4].s);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_STR
+					&& ket->ptypes[1]==SR_KEMIP_INT
+					&& ket->ptypes[2]==SR_KEMIP_STR
+					&& ket->ptypes[3]==SR_KEMIP_INT
+					&& ket->ptypes[4]==SR_KEMIP_INT) {
+				ret = ((sr_kemi_fmsnsnn_f)(ket->func))(env_J->msg,
+						&vps[0].s, vps[1].n, &vps[2].s, vps[3].n, vps[4].n);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_STR
+					&& ket->ptypes[1]==SR_KEMIP_INT
+					&& ket->ptypes[2]==SR_KEMIP_INT
+					&& ket->ptypes[3]==SR_KEMIP_STR
+					&& ket->ptypes[4]==SR_KEMIP_STR) {
+				ret = ((sr_kemi_fmsnnss_f)(ket->func))(env_J->msg,
+						&vps[0].s, vps[1].n, vps[2].n, &vps[3].s, &vps[4].s);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_STR
+					&& ket->ptypes[1]==SR_KEMIP_INT
+					&& ket->ptypes[2]==SR_KEMIP_INT
+					&& ket->ptypes[3]==SR_KEMIP_STR
+					&& ket->ptypes[4]==SR_KEMIP_INT) {
+				ret = ((sr_kemi_fmsnnsn_f)(ket->func))(env_J->msg,
+						&vps[0].s, vps[1].n, vps[2].n, &vps[3].s, vps[4].n);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_STR
+					&& ket->ptypes[1]==SR_KEMIP_INT
+					&& ket->ptypes[2]==SR_KEMIP_INT
+					&& ket->ptypes[3]==SR_KEMIP_INT
+					&& ket->ptypes[4]==SR_KEMIP_STR) {
+				ret = ((sr_kemi_fmsnnns_f)(ket->func))(env_J->msg,
+						&vps[0].s, vps[1].n, vps[2].n, vps[3].n, &vps[4].s);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_STR
+					&& ket->ptypes[1]==SR_KEMIP_INT
+					&& ket->ptypes[2]==SR_KEMIP_INT
+					&& ket->ptypes[3]==SR_KEMIP_INT
+					&& ket->ptypes[4]==SR_KEMIP_INT) {
+				ret = ((sr_kemi_fmsnnnn_f)(ket->func))(env_J->msg,
+						&vps[0].s, vps[1].n, vps[2].n, vps[3].n, vps[4].n);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_INT
+					&& ket->ptypes[1]==SR_KEMIP_STR
+					&& ket->ptypes[2]==SR_KEMIP_STR
+					&& ket->ptypes[3]==SR_KEMIP_STR
+					&& ket->ptypes[4]==SR_KEMIP_STR) {
+				ret = ((sr_kemi_fmnssss_f)(ket->func))(env_J->msg,
+						vps[0].n, &vps[1].s, &vps[2].s, &vps[3].s, &vps[4].s);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_INT
+					&& ket->ptypes[1]==SR_KEMIP_STR
+					&& ket->ptypes[2]==SR_KEMIP_STR
+					&& ket->ptypes[3]==SR_KEMIP_STR
+					&& ket->ptypes[4]==SR_KEMIP_INT) {
+				ret = ((sr_kemi_fmnsssn_f)(ket->func))(env_J->msg,
+						vps[0].n, &vps[1].s, &vps[2].s, &vps[3].s, vps[4].n);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_INT
+					&& ket->ptypes[1]==SR_KEMIP_STR
+					&& ket->ptypes[2]==SR_KEMIP_STR
+					&& ket->ptypes[3]==SR_KEMIP_INT
+					&& ket->ptypes[4]==SR_KEMIP_STR) {
+				ret = ((sr_kemi_fmnssns_f)(ket->func))(env_J->msg,
+						vps[0].n, &vps[1].s, &vps[2].s, vps[3].n, &vps[4].s);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_INT
+					&& ket->ptypes[1]==SR_KEMIP_STR
+					&& ket->ptypes[2]==SR_KEMIP_STR
+					&& ket->ptypes[3]==SR_KEMIP_INT
+					&& ket->ptypes[4]==SR_KEMIP_INT) {
+				ret = ((sr_kemi_fmnssnn_f)(ket->func))(env_J->msg,
+						vps[0].n, &vps[1].s, &vps[2].s, vps[3].n, vps[4].n);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_INT
+					&& ket->ptypes[1]==SR_KEMIP_STR
+					&& ket->ptypes[2]==SR_KEMIP_INT
+					&& ket->ptypes[3]==SR_KEMIP_STR
+					&& ket->ptypes[4]==SR_KEMIP_STR) {
+				ret = ((sr_kemi_fmnsnss_f)(ket->func))(env_J->msg,
+						vps[0].n, &vps[1].s, vps[2].n, &vps[3].s, &vps[4].s);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_INT
+					&& ket->ptypes[1]==SR_KEMIP_STR
+					&& ket->ptypes[2]==SR_KEMIP_INT
+					&& ket->ptypes[3]==SR_KEMIP_STR
+					&& ket->ptypes[4]==SR_KEMIP_INT) {
+				ret = ((sr_kemi_fmnsnsn_f)(ket->func))(env_J->msg,
+						vps[0].n, &vps[1].s, vps[2].n, &vps[3].s, vps[4].n);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_INT
+					&& ket->ptypes[1]==SR_KEMIP_STR
+					&& ket->ptypes[2]==SR_KEMIP_INT
+					&& ket->ptypes[3]==SR_KEMIP_INT
+					&& ket->ptypes[4]==SR_KEMIP_STR) {
+				ret = ((sr_kemi_fmnsnns_f)(ket->func))(env_J->msg,
+						vps[0].n, &vps[1].s, vps[2].n, vps[3].n, &vps[4].s);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_INT
+					&& ket->ptypes[1]==SR_KEMIP_STR
+					&& ket->ptypes[2]==SR_KEMIP_INT
+					&& ket->ptypes[3]==SR_KEMIP_INT
+					&& ket->ptypes[4]==SR_KEMIP_INT) {
+				ret = ((sr_kemi_fmnsnnn_f)(ket->func))(env_J->msg,
+						vps[0].n, &vps[1].s, vps[2].n, vps[3].n, vps[4].n);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_INT
+					&& ket->ptypes[1]==SR_KEMIP_INT
+					&& ket->ptypes[2]==SR_KEMIP_STR
+					&& ket->ptypes[3]==SR_KEMIP_STR
+					&& ket->ptypes[4]==SR_KEMIP_STR) {
+				ret = ((sr_kemi_fmnnsss_f)(ket->func))(env_J->msg,
+						vps[0].n, vps[1].n, &vps[2].s, &vps[3].s, &vps[4].s);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_INT
+					&& ket->ptypes[1]==SR_KEMIP_INT
+					&& ket->ptypes[2]==SR_KEMIP_STR
+					&& ket->ptypes[3]==SR_KEMIP_STR
+					&& ket->ptypes[4]==SR_KEMIP_INT) {
+				ret = ((sr_kemi_fmnnssn_f)(ket->func))(env_J->msg,
+						vps[0].n, vps[1].n, &vps[2].s, &vps[3].s, vps[4].n);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_INT
+					&& ket->ptypes[1]==SR_KEMIP_INT
+					&& ket->ptypes[2]==SR_KEMIP_STR
+					&& ket->ptypes[3]==SR_KEMIP_INT
+					&& ket->ptypes[4]==SR_KEMIP_STR) {
+				ret = ((sr_kemi_fmnnsns_f)(ket->func))(env_J->msg,
+						vps[0].n, vps[1].n, &vps[2].s, vps[3].n, &vps[4].s);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_INT
+					&& ket->ptypes[1]==SR_KEMIP_INT
+					&& ket->ptypes[2]==SR_KEMIP_STR
+					&& ket->ptypes[3]==SR_KEMIP_INT
+					&& ket->ptypes[4]==SR_KEMIP_INT) {
+				ret = ((sr_kemi_fmnnsnn_f)(ket->func))(env_J->msg,
+						vps[0].n, vps[1].n, &vps[2].s, vps[3].n, vps[4].n);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_INT
+					&& ket->ptypes[1]==SR_KEMIP_INT
+					&& ket->ptypes[2]==SR_KEMIP_INT
+					&& ket->ptypes[3]==SR_KEMIP_STR
+					&& ket->ptypes[4]==SR_KEMIP_STR) {
+				ret = ((sr_kemi_fmnnnss_f)(ket->func))(env_J->msg,
+						vps[0].n, vps[1].n, vps[2].n, &vps[3].s, &vps[4].s);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_INT
+					&& ket->ptypes[1]==SR_KEMIP_INT
+					&& ket->ptypes[2]==SR_KEMIP_INT
+					&& ket->ptypes[3]==SR_KEMIP_STR
+					&& ket->ptypes[4]==SR_KEMIP_INT) {
+				ret = ((sr_kemi_fmnnnsn_f)(ket->func))(env_J->msg,
+						vps[0].n, vps[1].n, vps[2].n, &vps[3].s, vps[4].n);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_INT
+					&& ket->ptypes[1]==SR_KEMIP_INT
+					&& ket->ptypes[2]==SR_KEMIP_INT
+					&& ket->ptypes[3]==SR_KEMIP_INT
+					&& ket->ptypes[4]==SR_KEMIP_STR) {
+				ret = ((sr_kemi_fmnnnns_f)(ket->func))(env_J->msg,
+						vps[0].n, vps[1].n, vps[2].n, vps[3].n, &vps[4].s);
+				return sr_kemi_sqlang_return_int(J, ket, ret);
+			} else if(ket->ptypes[0]==SR_KEMIP_INT
+					&& ket->ptypes[1]==SR_KEMIP_INT
+					&& ket->ptypes[2]==SR_KEMIP_INT
+					&& ket->ptypes[3]==SR_KEMIP_INT
+					&& ket->ptypes[4]==SR_KEMIP_INT) {
+				ret = ((sr_kemi_fmnnnnn_f)(ket->func))(env_J->msg,
+						vps[0].n, vps[1].n, vps[2].n, vps[3].n, vps[4].n);
 				return sr_kemi_sqlang_return_int(J, ket, ret);
 			} else {
-				LM_ERR("invalid parameters for: %.*s\n",
-						fname->len, fname->s);
+				LM_ERR("invalid parameters for: %.*s\n", fname->len, fname->s);
 				return app_sqlang_return_false(J);
 			}
 		break;
@@ -1583,6 +1875,10 @@ SQInteger sqlang_open_KSR(HSQUIRRELVM J)
 	/* registered kemi modules */
 	if(emods_size>1) {
 		for(k=1; k<emods_size; k++) {
+			if(emods[k].kexp == sr_kemi_exports_get_pv()) {
+				LM_DBG("skip registering the core KSR.pv module\n");
+				continue;
+			}
 			n++;
 			_sr_crt_J_KSRMethods = _sr_J_KSRMethods + n;
 			snprintf(mname, 128, "%s", emods[k].kexp[0].mname.s);

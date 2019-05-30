@@ -18,6 +18,7 @@
 %bcond_without mongodb
 %bcond_without perl
 %bcond_without phonenum
+%bcond_without python3
 %bcond_without rabbitmq
 %bcond_without redis
 %bcond_without ruby
@@ -42,6 +43,7 @@
 %bcond_without mongodb
 %bcond_without perl
 %bcond_without phonenum
+%bcond_without python3
 %bcond_without rabbitmq
 %bcond_without redis
 %bcond_without ruby
@@ -66,6 +68,7 @@
 %bcond_without mongodb
 %bcond_without perl
 %bcond_without phonenum
+%bcond_without python3
 %bcond_without rabbitmq
 %bcond_without redis
 %bcond_without ruby
@@ -90,6 +93,7 @@
 %bcond_without mongodb
 %bcond_without perl
 %bcond_without phonenum
+%bcond_without python3
 %bcond_without rabbitmq
 %bcond_without redis
 %bcond_without ruby
@@ -114,6 +118,7 @@
 %bcond_with mongodb
 %bcond_without perl
 %bcond_with phonenum
+%bcond_with python3
 %bcond_with rabbitmq
 %bcond_with redis
 %bcond_with ruby
@@ -139,6 +144,7 @@
 %bcond_without mongodb
 %bcond_without perl
 %bcond_without phonenum
+%bcond_without python3
 %bcond_without rabbitmq
 %bcond_without redis
 %bcond_without ruby
@@ -163,6 +169,7 @@
 %bcond_with mongodb
 %bcond_without perl
 %bcond_with phonenum
+%bcond_without python3
 %bcond_with rabbitmq
 %bcond_without redis
 %bcond_without ruby
@@ -187,6 +194,7 @@
 %bcond_with mongodb
 %bcond_with perl
 %bcond_with phonenum
+%bcond_with python3
 %bcond_with rabbitmq
 %bcond_with redis
 %bcond_with ruby
@@ -211,6 +219,7 @@
 %bcond_without mongodb
 %bcond_without perl
 %bcond_with phonenum
+%bcond_with python3
 %bcond_with rabbitmq
 %bcond_without redis
 %bcond_with ruby
@@ -283,12 +292,7 @@ BuildRequires:  bison, flex
 Requires:  filesystem
 BuildRequires:  systemd-mini, shadow
 %endif
-%if 0%{?fedora} == 27
-BuildRequires:  python3-devel
-%endif
-%if 0%{?fedora} == 28
-BuildRequires:  python3-devel
-%endif
+
 
 %description
 Kamailio (former OpenSER) is an Open Source SIP Server released under GPL, able
@@ -393,7 +397,7 @@ Module which provides a mechanism to limit call duration based on credit informa
 %package    cpl
 Summary:    CPL (Call Processing Language) interpreter for Kamailio
 Group:      %{PKGGROUP}
-Requires:   libxml2, kamailio = %ver
+Requires:   which, libxml2, kamailio = %ver
 BuildRequires:  libxml2-devel
 
 %description    cpl
@@ -733,6 +737,15 @@ Summary:    Python extensions for Kamailio
 Group:      %{PKGGROUP}
 Requires:   python, kamailio = %ver
 BuildRequires:  python, python-devel
+%if %{with python3}
+%if 0%{?rhel} == 7
+Requires:   python36, kamailio = %ver
+BuildRequires:  python36, python36-devel
+%else
+Requires:   python3, kamailio = %ver
+BuildRequires:  python3, python3-devel
+%endif
+%endif
 
 %description    python
 Python extensions for Kamailio.
@@ -1056,9 +1069,14 @@ UUID module for Kamailio.
 %prep
 %setup -n %{name}-%{ver}
 
+%if "%{__python2}" != ""
+    sed -i -e 's:#!/usr/bin/python:#!%{__python2}:' utils/kamctl/dbtextdb/dbtextdb.py
+%endif
+
 ln -s ../obs pkg/kamailio/fedora/27
 ln -s ../obs pkg/kamailio/fedora/28
 ln -s ../obs pkg/kamailio/fedora/29
+ln -s ../obs pkg/kamailio/fedora/30
 ln -s ../obs pkg/kamailio/rhel/6
 ln -s ../obs pkg/kamailio/rhel/7
 ln -s ../obs pkg/kamailio/opensuse/1315
@@ -1136,7 +1154,11 @@ make every-module skip_modules="app_mono db_cassandra db_oracle iptrtpproxy \
 %if %{with phonenum}
     kphonenum \
 %endif
-    kpostgres kpresence kpython kradius \
+    kpostgres kpresence kpython \
+%if %{with python3}
+    kpython3 \
+%endif
+    kradius \
 %if %{with redis}
     kredis \
 %endif
@@ -1216,7 +1238,11 @@ make install-modules-all skip_modules="app_mono db_cassandra db_oracle \
 %if %{with phonenum}
     kphonenum \
 %endif
-    kpostgres kpresence kpython kradius \
+    kpostgres kpresence kpython \
+%if %{with python3}
+    kpython3 \
+%endif
+    kradius \
 %if %{with redis}
     kredis \
 %endif
@@ -1748,6 +1774,7 @@ fi
 %doc %{_docdir}/kamailio/modules/README.ims_registrar_pcscf
 %doc %{_docdir}/kamailio/modules/README.ims_registrar_scscf
 %doc %{_docdir}/kamailio/modules/README.ims_usrloc_pcscf
+%doc %{_docdir}/kamailio/modules/README.ims_usrloc_scscf
 %{_libdir}/kamailio/modules/cdp.so
 %{_libdir}/kamailio/modules/cdp_avp.so
 %{_libdir}/kamailio/modules/ims_auth.so
@@ -1951,6 +1978,10 @@ fi
 %defattr(-,root,root)
 %doc %{_docdir}/kamailio/modules/README.app_python
 %{_libdir}/kamailio/modules/app_python.so
+%if %{with python3}
+%doc %{_docdir}/kamailio/modules/README.app_python3
+%{_libdir}/kamailio/modules/app_python3.so
+%endif
 
 
 %if %{with rabbitmq}
@@ -2086,6 +2117,8 @@ fi
 %doc %{_docdir}/kamailio/modules/README.tls
 %{_libdir}/kamailio/modules/auth_identity.so
 %{_libdir}/kamailio/modules/tls.so
+%dir %{_libdir}/kamailio/openssl_mutex_shared
+%{_libdir}/kamailio/openssl_mutex_shared/openssl_mutex_shared.so
 
 
 %files      tcpops
