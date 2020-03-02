@@ -14,7 +14,7 @@ endif
 
 ifeq ($(HIREDIS_BUILDER),)
 	HIREDISDEFS=-I$(LOCALBASE)/include -I$(LOCALBASE)/include/hiredis -I/usr/include/hiredis
-	HIREDISLIBS=-L$(LOCALBASE)/lib -lhiredis
+	HIREDISLIBS=-L$(LOCALBASE)/lib -lhiredis $(LD_RPATH)$(LOCALBASE)/lib
 else
 	HIREDISDEFS = $(shell $(HIREDIS_BUILDER) --cflags)
 	HIREDISLIBS = $(shell $(HIREDIS_BUILDER) --libs)

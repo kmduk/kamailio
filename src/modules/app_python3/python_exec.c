@@ -154,6 +154,7 @@ int apy_exec(sip_msg_t *_msg, char *fname, char *fparam, int emode)
 	}
 
 	rval = PyLong_AsLong(pResult);
+	python_handle_exception("apy_exec: %s(%s)", fname, fparam); // report any conversion error
 	Py_DECREF(pResult);
 	_sr_apy_env.msg = bmsg;
  err:

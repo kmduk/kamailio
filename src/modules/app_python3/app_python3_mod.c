@@ -173,7 +173,7 @@ static int mod_init(void)
  */
 static int child_init(int rank)
 {
-	if(rank==PROC_INIT) {
+	if (rank < PROC_SIPINIT || rank >= PROC_SIPRPC) {
 		return 0;
 	}
 	_apy_process_rank = rank;
@@ -185,6 +185,7 @@ static int child_init(int rank)
 	if (cfg_child_init()) {
 		return -1;
 	}
+	myThreadState = PyEval_SaveThread(); // release the GIL owned by the main process when fork() was called
 	return apy_init_script(rank);
 }
 
