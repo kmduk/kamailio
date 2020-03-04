@@ -1326,10 +1326,11 @@ static int db_redis_perform_delete(const db1_con_t* _h, km_redis_con_t *con, con
             db_redis_key_free(&tmp);
 
         // skip if delete all rows
+        /* don't skip as that seems to leave usrloc entries in the usrdom set
         if (!*manual_keys_count) {
           db_redis_key_free (&query_v);
           goto skipkeys;
-        }
+        }*/
 
         if (db_redis_key_prepend_string(&query_v, "HMGET", 5) != 0) {
             LM_ERR("Failed to set hmget command to pre-delete query\n");
