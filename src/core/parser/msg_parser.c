@@ -169,9 +169,9 @@ char* get_hdr_field(char* const buf, char* const end, struct hdr_field* const hd
 			hdr->body.len=tmp-hdr->body.s;
 			DBG("<%.*s> [%d]; uri=[%.*s]\n", hdr->name.len, ZSW(hdr->name.s),
 					hdr->body.len, to_b->uri.len, ZSW(to_b->uri.s));
-			DBG("to body [%.*s], to tag [%.*s]\n", to_b->body.len,
-					ZSW(to_b->body.s), to_b->tag_value.len,
-					ZSW(to_b->tag_value.s));
+			DBG("to body (%d)[%.*s], to tag (%d)[%.*s]\n", to_b->body.len,
+					to_b->body.len, ZSW(to_b->body.s), to_b->tag_value.len,
+					to_b->tag_value.len, ZSW(to_b->tag_value.s));
 			break;
 		case HDR_CONTENTLENGTH_T:
 			hdr->body.s=tmp;
@@ -806,11 +806,14 @@ int set_path_vector(struct sip_msg* msg, str* path)
 
 void reset_path_vector(struct sip_msg* const msg)
 {
-	if (msg->path_vec.s) {
-		pkg_free(msg->path_vec.s);
+	if (!shm_address_in(msg->path_vec.s)) {
+		if (msg->path_vec.s)
+			pkg_free(msg->path_vec.s);
+		msg->path_vec.s = 0;
+		msg->path_vec.len = 0;
+	} else {
+		LM_WARN("Found path_vec that is not in pkg mem!\n");
 	}
-	msg->path_vec.s = 0;
-	msg->path_vec.len = 0;
 }
 
 

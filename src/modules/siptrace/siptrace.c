@@ -534,7 +534,8 @@ static int sip_trace_store(siptrace_data_t *sto, dest_info_t *dst,
 		trace_send_hep_duplicate(
 				&sto->body, &sto->fromip, &sto->toip, dst, correlation_id_str);
 	} else {
-		if(dst) {
+		/* sip_trace_mode() will not set a destination, uses duplicate_uri */
+		if(dst || trace_to_database == 0) {
 			trace_send_duplicate(sto->body.s, sto->body.len, dst);
 		}
 	}
@@ -814,6 +815,7 @@ static int sip_trace_helper(sip_msg_t *msg, dest_info_t *dst, str *duri,
 		str *corid, char *dir, enum siptrace_type_t trace_type)
 {
 	siptrace_info_t* info = NULL;
+	char *p = NULL;
 
 	if (trace_type == SIPTRACE_TRANSACTION || trace_type == SIPTRACE_DIALOG) {
 		int alloc_size = sizeof(siptrace_info_t);
@@ -857,17 +859,18 @@ static int sip_trace_helper(sip_msg_t *msg, dest_info_t *dst, str *duri,
 		}
 		memset(info, 0, alloc_size);
 
+		p = (char *)(info + 1);
 		/* could use the dest_info we've already parsed but there's no way to pass
 		 * it to DLGCB_CREATED callback so the only thing to do is keep
 		 * it as uri, serialize in a dlg_var and parse again in DLGCB_CREATED */
 		if(corid) {
-			info->correlation_id.s = (char *)(info + 1);
+			info->correlation_id.s = p;
 			info->correlation_id.len = corid->len;
 			memcpy(info->correlation_id.s, corid->s, corid->len);
 		}
 		if (duri) {
 			info->uriState = STRACE_RAW_URI;
-			info->u.dup_uri.s = (char *)info->correlation_id.s + info->correlation_id.len;
+			info->u.dup_uri.s = p + ((info->correlation_id.s)?info->correlation_id.len:0);
 			memcpy(info->u.dup_uri.s, duri->s, duri->len);
 			info->u.dup_uri.len = duri->len;
 		} else {
@@ -994,10 +997,13 @@ static int w_sip_trace3(sip_msg_t *msg, char *dest, char *correlation_id, char *
 	dest_info_t dest_info;
 	enum siptrace_type_t trace_type;
 
-	if (dest) {
-		if(fixup_get_svalue(msg, (gparam_t *)dest, &dup_uri_param_str) != 0) {
-			LM_ERR("unable to parse the dest URI string\n");
-			return -1;
+	/* to support tracing to database without destination parameter - old mode */
+	if (dest || trace_to_database == 0) {
+		if (dest) {
+			if(fixup_get_svalue(msg, (gparam_t *)dest, &dup_uri_param_str) != 0) {
+				LM_ERR("unable to parse the dest URI string\n");
+				return -1;
+			}
 		}
 
 		if (dup_uri_param_str.s == 0 || (is_null_pv(dup_uri_param_str))) {
@@ -1494,6 +1500,7 @@ static void trace_onreply_out(struct cell *t, int type, struct tmcb_params *ps)
 	siptrace_data_t sto;
 	siptrace_info_t* info;
 	int faked = 0;
+	int parsed_f = 0;
 	struct sip_msg *msg;
 	struct sip_msg *req;
 	struct ip_addr to_ip;
@@ -1532,6 +1539,11 @@ static void trace_onreply_out(struct cell *t, int type, struct tmcb_params *ps)
 	if(msg == NULL || msg == FAKED_REPLY) {
 		msg = t->uas.request;
 		faked = 1;
+		/* check if from header has been already parsed.
+		 * If not we have to parse it in pkg memory and free it at the end.
+		 */
+		if (msg->from && msg->from->parsed == NULL)
+			parsed_f = 1;
 	}
 
 	if(sip_trace_prepare(msg) < 0)
@@ -1615,10 +1627,16 @@ static void trace_onreply_out(struct cell *t, int type, struct tmcb_params *ps)
 
 	if (info->uriState == STRACE_RAW_URI) {
 		LM_BUG("uriState must be either UNUSED or PARSED here! must be a bug! Message won't be traced!\n");
-		return;
+		goto end;
 	}
 
 	sip_trace_store(&sto, info->uriState == STRACE_PARSED_URI ? &info->u.dest_info : NULL, NULL);
+
+end:
+	if (faked && parsed_f) {
+		free_from(msg->from->parsed);
+		msg->from->parsed = NULL;
+	}
 }
 
 static void trace_tm_neg_ack_in(struct cell *t, int type, struct tmcb_params *ps)
@@ -1890,7 +1908,7 @@ static void trace_dialog(struct dlg_cell* dlg, int type, struct dlg_cb_params *p
 
 	if(dlgb.register_dlgcb(dlg, DLGCB_REQ_WITHIN,
 				trace_dialog_transaction, xavp->val.v.vptr, 0) != 0) {
-		LM_ERR("Failed to register DLGCB_TERMINATED callback!\n");
+		LM_ERR("Failed to register DLGCB_REQ_WITHIN callback!\n");
 		return;
 	}
 

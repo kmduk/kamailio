@@ -79,6 +79,22 @@
 #define DS_ALG_RELWEIGHT 11
 #define DS_ALG_PARALLEL 12
 
+/* increment call load */
+#define DS_LOAD_INC(dgrp, didx) do { \
+		lock_get(&(dgrp)->lock); \
+		(dgrp)->dlist[didx].dload++; \
+		lock_release(&(dgrp)->lock); \
+	} while(0)
+
+/* decrement call load */
+#define DS_LOAD_DEC(dgrp, didx) do { \
+		lock_get(&(dgrp)->lock); \
+		if(likely((dgrp)->dlist[didx].dload > 0)) { \
+			(dgrp)->dlist[didx].dload--; \
+		} \
+		lock_release(&(dgrp)->lock); \
+	} while(0)
+
 static int _ds_table_version = DS_TABLE_VERSION;
 
 static ds_ht_t *_dsht_load = NULL;
@@ -854,7 +870,7 @@ next_line:
 	/* Update list - should it be sync'ed? */
 	_ds_list_nr = setn;
 	*crt_idx = *next_idx;
-	ds_ht_clear_slots(_dsht_load);
+	
 	ds_log_sets();
 	return 0;
 
@@ -1102,7 +1118,6 @@ int ds_load_db(void)
 	/* update data - should it be sync'ed? */
 	_ds_list_nr = setn;
 	*crt_idx = *next_idx;
-	ds_ht_clear_slots(_dsht_load);
 
 	ds_log_sets();
 
@@ -1506,6 +1521,7 @@ int ds_get_leastloaded(ds_set_t *dset)
 
 	k = -1;
 	t = 0x7fffffff; /* high load */
+	lock_get(&dset->lock); \
 	for(j = 0; j < dset->nr; j++) {
 		if(!ds_skip_dst(dset->dlist[j].flags)
 				&& (dset->dlist[j].attrs.maxload == 0
@@ -1517,6 +1533,7 @@ int ds_get_leastloaded(ds_set_t *dset)
 			}
 		}
 	}
+	lock_release(&dset->lock); \
 	return k;
 }
 
@@ -1538,7 +1555,7 @@ int ds_load_add(struct sip_msg *msg, ds_set_t *dset, int setid, int dst)
 				msg->callid->body.s);
 		return -1;
 	}
-	dset->dlist[dst].dload++;
+	DS_LOAD_INC(dset, dst);
 	return 0;
 }
 
@@ -1591,23 +1608,24 @@ int ds_load_replace(struct sip_msg *msg, str *duid)
 				break;
 		}
 	}
+	/* old destination has not been found: has been removed meanwhile? */
 	if(olddst == -1) {
-		ds_unlock_cell(_dsht_load, &msg->callid->body);
-		LM_ERR("old destination address not found for [%d, %.*s]\n", set,
+		LM_WARN("old destination address not found for [%d, %.*s]\n", set,
 				it->duid.len, it->duid.s);
-		return -1;
-	}
+	} 
 	if(newdst == -1) {
+		/* new destination has not been found: has been removed meanwhile? */
 		ds_unlock_cell(_dsht_load, &msg->callid->body);
 		LM_ERR("new destination address not found for [%d, %.*s]\n", set,
 				duid->len, duid->s);
-		return -1;
+		return -2;
 	}
 
 	ds_unlock_cell(_dsht_load, &msg->callid->body);
 	ds_del_cell(_dsht_load, &msg->callid->body);
-	if(idx->dlist[olddst].dload > 0)
-		idx->dlist[olddst].dload--;
+	
+	if(olddst != -1)
+		DS_LOAD_DEC(idx, olddst);
 
 	if(ds_load_add(msg, idx, set, newdst) < 0) {
 		LM_ERR("unable to replace destination load [%.*s / %.*s]\n", duid->len,
@@ -1646,8 +1664,7 @@ int ds_load_remove_byid(int set, str *duid)
 		return -1;
 	}
 
-	if(idx->dlist[olddst].dload > 0)
-		idx->dlist[olddst].dload--;
+	DS_LOAD_DEC(idx, olddst);
 
 	return 0;
 }
@@ -2034,6 +2051,7 @@ int ds_manage_routes(sip_msg_t *msg, ds_select_state_t *rstate)
 	unsigned int hash;
 	ds_set_t *idx = NULL;
 	int ulast = 0;
+	int vlast = 0;
 
 	if(msg == NULL) {
 		LM_ERR("bad parameters\n");
@@ -2088,8 +2106,11 @@ int ds_manage_routes(sip_msg_t *msg, ds_select_state_t *rstate)
 			}
 			break;
 		case DS_ALG_ROUNDROBIN: /* 4 - round robin */
+			lock_get(&idx->lock);
 			hash = idx->last;
 			idx->last = (idx->last + 1) % idx->nr;
+			vlast = idx->last;
+			lock_release(&idx->lock);
 			ulast = 1;
 			break;
 		case DS_ALG_HASHAUTHUSER: /* 5 - hash auth username */
@@ -2100,8 +2121,11 @@ int ds_manage_routes(sip_msg_t *msg, ds_select_state_t *rstate)
 					break;
 				case 1:
 					/* No Authorization found: Use round robin */
+					lock_get(&idx->lock);
 					hash = idx->last;
 					idx->last = (idx->last + 1) % idx->nr;
+					vlast = idx->last;
+					lock_release(&idx->lock);
 					ulast = 1;
 					break;
 				default:
@@ -2122,8 +2146,10 @@ int ds_manage_routes(sip_msg_t *msg, ds_select_state_t *rstate)
 			hash = 0;
 			break;
 		case DS_ALG_WEIGHT: /* 9 - weight based distribution */
+			lock_get(&idx->lock);
 			hash = idx->wlist[idx->wlast];
 			idx->wlast = (idx->wlast + 1) % 100;
+			lock_release(&idx->lock);
 			break;
 		case DS_ALG_CALLLOAD: /* 10 - call load based distribution */
 			/* only INVITE can start a call */
@@ -2153,8 +2179,10 @@ int ds_manage_routes(sip_msg_t *msg, ds_select_state_t *rstate)
 			}
 			break;
 		case DS_ALG_RELWEIGHT: /* 11 - relative weight based distribution */
+			lock_get(&idx->lock);
 			hash = idx->rwlist[idx->rwlast];
 			idx->rwlast = (idx->rwlast + 1) % 100;
+			lock_release(&idx->lock);
 			break;
 		case DS_ALG_PARALLEL: /* 12 - parallel dispatching */
 			hash = 0;
@@ -2204,10 +2232,13 @@ int ds_manage_routes(sip_msg_t *msg, ds_select_state_t *rstate)
 		rstate->emode = 1;
 	}
 
-	/* update last field for next select to point after the current active used */
-	if(ulast) {
+	/* update last field for next select to point after the current active used,
+	 * if not updated meanwhile */
+	lock_get(&idx->lock);
+	if(ulast && (vlast == idx->last)) {
 		idx->last = (hash + 1) % idx->nr;
 	}
+	lock_release(&idx->lock);
 
 	LM_DBG("selected [%d-%d-%d/%d] <%.*s>\n", rstate->alg, rstate->setid,
 			rstate->umode, hash,
@@ -2247,6 +2278,7 @@ int ds_manage_routes(sip_msg_t *msg, ds_select_state_t *rstate)
 		}
 		/* max load exceeded per destination */
 		if(rstate->alg == DS_ALG_CALLLOAD
+				&& idx->dlist[i].attrs.maxload != 0
 				&& idx->dlist[i].dload >= idx->dlist[i].attrs.maxload) {
 			continue;
 		}
@@ -2268,6 +2300,7 @@ int ds_manage_routes(sip_msg_t *msg, ds_select_state_t *rstate)
 		}
 		/* max load exceeded per destination */
 		if(rstate->alg == DS_ALG_CALLLOAD
+				&& idx->dlist[i].attrs.maxload != 0
 				&& idx->dlist[i].dload >= idx->dlist[i].attrs.maxload) {
 			continue;
 		}
@@ -2299,6 +2332,7 @@ int ds_manage_routes(sip_msg_t *msg, ds_select_state_t *rstate)
 int ds_update_dst(struct sip_msg *msg, int upos, int mode)
 {
 
+	int ret;
 	socket_info_t *sock = NULL;
 	sr_xavp_t *rxavp = NULL;
 	sr_xavp_t *lxavp = NULL;
@@ -2311,6 +2345,7 @@ int ds_update_dst(struct sip_msg *msg, int upos, int mode)
 		}
 	}
 
+next_dst:
 	rxavp = xavp_get(&ds_xavp_dst, NULL);
 	if(rxavp == NULL || rxavp->val.type != SR_XTYPE_XAVP) {
 		LM_DBG("no xavp with previous destination record\n");
@@ -2358,12 +2393,18 @@ int ds_update_dst(struct sip_msg *msg, int upos, int mode)
 		return 1;
 	}
 	if(upos == DS_USE_NEXT) {
-		if(ds_load_replace(msg, &lxavp->val.v.s) < 0) {
-			LM_ERR("cannot update load distribution\n");
-			return -1;
+		ret = ds_load_replace(msg, &lxavp->val.v.s);
+		switch(ret) {
+			case 0:
+				break;
+			case -2:
+				LM_ERR("cannot update load with %.*s, skipping dst.\n", lxavp->val.v.s.len, lxavp->val.v.s.s);
+				goto next_dst;
+			default:
+				LM_ERR("cannot update load distribution\n");
+				return -1;
 		}
 	}
-
 	return 1;
 }
 
@@ -2414,7 +2455,7 @@ int ds_add_dst(int group, str *address, int flags)
 
 	_ds_list_nr = setn;
 	*crt_idx = *next_idx;
-	ds_ht_clear_slots(_dsht_load);
+	
 	ds_log_sets();
 	return 0;
 
@@ -2469,7 +2510,7 @@ int ds_remove_dst(int group, str *address)
 
 	_ds_list_nr = setn;
 	*crt_idx = *next_idx;
-	ds_ht_clear_slots(_dsht_load);
+	
 	ds_log_sets();
 	return 0;
 
@@ -2514,6 +2555,8 @@ int ds_mark_dst(struct sip_msg *msg, int state)
 }
 
 static inline void latency_stats_update(ds_latency_stats_t *latency_stats, int latency) {
+	int training_count = 10000;
+
 	/* after 2^21 ~24 days at 1s interval, the average becomes a weighted average */
 	if (latency_stats->count < 2097152) {
 		latency_stats->count++;
@@ -2528,8 +2571,10 @@ static inline void latency_stats_update(ds_latency_stats_t *latency_stats, int l
 		latency_stats->average = latency;
 		latency_stats->estimate = latency;
 	}
-	/* train the average if stable after 10 samples */
-	if (latency_stats->count > 10 && latency_stats->stdev < 0.5) latency_stats->count = 500000;
+	/* stabilize-train the estimator if the average is stable after 10 samples */
+	if (latency_stats->count > 10 && latency_stats->count < training_count
+	        && latency_stats->stdev < 0.5)
+		latency_stats->count = training_count;
 	if (latency_stats->min > latency)
 		latency_stats->min = latency;
 	if (latency_stats->max < latency)
@@ -3225,6 +3270,7 @@ void ds_ping_set(ds_set_t *node)
 	uac_req_t uac_r;
 	int i, j;
 	str ping_from;
+	int state;
 
 	if(!node)
 		return;
@@ -3273,6 +3319,18 @@ void ds_ping_set(ds_set_t *node)
 					< 0) {
 				LM_ERR("unable to ping [%.*s]\n", node->dlist[j].uri.len,
 						node->dlist[j].uri.s);
+				state = DS_TRYING_DST;
+				if(ds_probing_mode != DS_PROBE_NONE) {
+					state |= DS_PROBING_DST;
+				}
+				/* check if meantime someone disabled the target via RPC */
+				if(!(node->dlist[j].flags & DS_DISABLED_DST)
+						&& ds_update_state(NULL, node->id, &node->dlist[j].uri,
+								state) != 0) {
+					LM_ERR("Setting the probing state failed (%.*s, group %d)\n",
+							node->dlist[j].uri.len, node->dlist[j].uri.s,
+							node->id);
+				}
 			}
 		}
 	}

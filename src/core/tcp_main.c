@@ -2029,7 +2029,7 @@ int tcp_send(struct dest_info* dst, union sockaddr_union* from,
 			if (likely(port)){
 				/* try again w/o id */
 				if(tcp_connection_match==TCPCONN_MATCH_STRICT) {
-					c=tcpconn_lookup(dst->id, &ip, port, from, try_local_port, con_lifetime);
+					c=tcpconn_lookup(0, &ip, port, from, try_local_port, con_lifetime);
 				} else {
 					c=tcpconn_get(0, &ip, port, from, con_lifetime);
 				}
@@ -3325,7 +3325,8 @@ inline static int tcpconn_put_destroy(struct tcp_connection* tcpconn)
 	 * the refcnt. and at least a membar_write_atomic_op() mem. barrier or
 	 *  a mb_atomic_* op must * be used to make sure all the changed flags are
 	 *  written into memory prior to the new refcnt value */
-	if (unlikely(mb_atomic_dec_and_test(&tcpconn->refcnt))){
+	if (unlikely((mb_atomic_get(&tcpconn->refcnt)==0)
+				|| mb_atomic_dec_and_test(&tcpconn->refcnt))){
 		_tcpconn_free(tcpconn);
 		return 1;
 	}
@@ -3668,7 +3669,7 @@ inline static int handle_tcp_child(struct tcp_child* tcp_c, int fd_i)
 							_wbufq_non_empty(tcpconn) )){
 				if (unlikely(TICKS_GE(t, tcpconn->wbuf_q.wr_timeout))){
 					LM_DBG("wr. timeout on CONN_RELEASE for %p refcnt= %d\n",
-							tcpconn, atomic_get(&tcpconn->refcnt));
+							(void*)tcpconn, atomic_get(&tcpconn->refcnt));
 					/* timeout */
 					if (unlikely(tcpconn->state==S_CONN_CONNECT)){
 #ifdef USE_DST_BLACKLIST

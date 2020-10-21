@@ -28,6 +28,7 @@
 
 #include "dprint.h"
 #include "ut.h"
+#include "trim.h"
 #include "strutils.h"
 
 /*! \brief
@@ -453,16 +454,24 @@ int cmpi_str(str *s1, str *s2)
 
 int cmp_hdrname_str(str *s1, str *s2)
 {
+	str n1, n2;
+	n1 = *s1;
+	n2 = *s2;
+	trim_trailing(&n1);
+	trim_trailing(&n2);
 	/* todo: parse hdr name and compare with short/long alternative */
-	return cmpi_str(s1, s2);
+	return cmpi_str(&n1, &n2);
 }
 
-int cmp_hdrname_strzn(str *s1, char *s2, size_t n)
+int cmp_hdrname_strzn(str *s1, char *s2, size_t len)
 {
-	str s;
-	s.s = s2;
-	s.len = n;
-	return cmpi_str(s1, &s);
+	str n1, n2;
+	n1 = *s1;
+	n2.s = s2;
+	n2.len = len;
+	trim_trailing(&n1);
+	trim_trailing(&n2);
+	return cmpi_str(&n1, &n2);
 }
 
 int cmp_str_params(str *s1, str *s2)
@@ -496,13 +505,13 @@ int cmp_str_params(str *s1, str *s2)
 }
 
 /**
- * Compare SIP URI as per RFC3261, 19.1.4
+ * Compare SIP URI in light mode or as per RFC3261, 19.1.4
  * return:
  *	- 0: match
  *	- >0: no match
  *	- <0: error
  */
-int cmp_uri(struct sip_uri *uri1, struct sip_uri *uri2)
+int cmp_uri_mode(struct sip_uri *uri1, struct sip_uri *uri2, int cmode)
 {
 	if(uri1->type!=uri2->type)
 		return 1;
@@ -520,6 +529,13 @@ int cmp_uri(struct sip_uri *uri1, struct sip_uri *uri2)
 		return 1;
 	if(cmpi_str(&uri1->host, &uri2->host)!=0)
 		return 1;
+	if(cmode == 1) {
+		/* compare mode light - proto should be the same for match */
+		if(uri1->proto == uri2->proto) {
+			return 0;
+		}
+		return 1;
+	}
 	/* if no params, we are done */
 	if(uri1->params.len==0 && uri2->params.len==0)
 		return 0;
@@ -549,6 +565,30 @@ int cmp_uri(struct sip_uri *uri1, struct sip_uri *uri2)
 }
 
 /**
+ * Compare SIP URI as per RFC3261, 19.1.4 (match also params)
+ * return:
+ *	- 0: match
+ *	- >0: no match
+ *	- <0: error
+ */
+int cmp_uri(struct sip_uri *uri1, struct sip_uri *uri2)
+{
+	return cmp_uri_mode(uri1, uri2, 0);
+}
+
+/**
+ * Compare SIP URI light - uri type, user, host, port and proto match
+ * return:
+ *	- 0: match
+ *	- >0: no match
+ *	- <0: error
+ */
+int cmp_uri_light(struct sip_uri *uri1, struct sip_uri *uri2)
+{
+	return cmp_uri_mode(uri1, uri2, 1);
+}
+
+/**
  * return:
  *	- 0: match
  *	- >0: no match
@@ -565,6 +605,25 @@ int cmp_uri_str(str *s1, str *s2)
 	if(parse_uri(s2->s, s2->len, &uri2)!=0)
 		return -1;
 	return cmp_uri(&uri1, &uri2);
+}
+
+/**
+ * return:
+ *	- 0: match
+ *	- >0: no match
+ *	- <0: error
+ */
+int cmp_uri_light_str(str *s1, str *s2)
+{
+	struct sip_uri uri1;
+	struct sip_uri uri2;
+
+	/* todo: parse uri and compare the parts */
+	if(parse_uri(s1->s, s1->len, &uri1)!=0)
+		return -1;
+	if(parse_uri(s2->s, s2->len, &uri2)!=0)
+		return -1;
+	return cmp_uri_light(&uri1, &uri2);
 }
 
 /**
